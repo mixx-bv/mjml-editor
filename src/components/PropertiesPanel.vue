@@ -1,0 +1,169 @@
+<script setup lang="ts">
+import { computed } from 'vue'
+import { useEditorStore } from '../stores/editor'
+import { isContainer } from '../types/mjml'
+import BodyProps from './properties/BodyProps.vue'
+import ColumnProps from './properties/ColumnProps.vue'
+import SectionProps from './properties/SectionProps.vue'
+import TextProps from './properties/TextProps.vue'
+import ImageProps from './properties/ImageProps.vue'
+import ButtonProps from './properties/ButtonProps.vue'
+
+const store = useEditorStore()
+
+const LABELS: Record<string, string> = {
+  'mj-body': 'Body',
+  'mj-section': 'Section',
+  'mj-column': 'Column',
+  'mj-text': 'Text',
+  'mj-image': 'Image',
+  'mj-button': 'Button',
+}
+
+const typeLabel = computed(() => LABELS[store.selected?.type || ''] || '')
+
+const deleteLabel = computed(() => {
+  const sel = store.selected
+  if (!sel) return 'Delete'
+  const count = isContainer(sel) ? sel.children.length : 0
+  if (!count) return `Delete ${typeLabel.value}`
+  return `Delete ${typeLabel.value} (${count} ${count === 1 ? 'item' : 'items'})`
+})
+
+function onDelete() {
+  const sel = store.selected
+  if (!sel) return
+  if (isContainer(sel) && sel.children.length > 0) {
+    const ok = window.confirm(
+      `${deleteLabel.value}?\n\nThis will also remove everything inside.`,
+    )
+    if (!ok) return
+  }
+  store.removeNode(sel.id)
+}
+</script>
+
+<template>
+  <aside class="props">
+    <h2 class="props__title">Properties</h2>
+
+    <div v-if="!store.selected" class="props__empty">
+      Select a block in the canvas to edit its properties.
+    </div>
+
+    <template v-else>
+      <nav v-if="store.ancestors.length > 1" class="props__crumbs" aria-label="Selection path">
+        <template v-for="(node, i) in store.ancestors" :key="node.id">
+          <button
+            class="props__crumb"
+            :class="{ 'is-current': node.id === store.selectedId }"
+            @click="store.select(node.id)"
+          >
+            {{ LABELS[node.type] || node.type }}
+          </button>
+          <span v-if="i < store.ancestors.length - 1" class="props__crumb-sep">›</span>
+        </template>
+      </nav>
+
+      <div class="props__header">
+        <span class="props__type">{{ typeLabel }}</span>
+        <button v-if="store.selected.type !== 'mj-body'" class="props__delete" @click="onDelete">
+          {{ deleteLabel }}
+        </button>
+      </div>
+
+      <BodyProps v-if="store.selected.type === 'mj-body'" :node-id="store.selected.id" />
+      <SectionProps v-else-if="store.selected.type === 'mj-section'" :node-id="store.selected.id" />
+      <ColumnProps v-else-if="store.selected.type === 'mj-column'" :node-id="store.selected.id" />
+      <TextProps v-else-if="store.selected.type === 'mj-text'" :node-id="store.selected.id" />
+      <ImageProps v-else-if="store.selected.type === 'mj-image'" :node-id="store.selected.id" />
+      <ButtonProps v-else-if="store.selected.type === 'mj-button'" :node-id="store.selected.id" />
+    </template>
+  </aside>
+</template>
+
+<style lang="scss" scoped>
+@use '../styles/variables' as *;
+
+.props {
+  background: $color-panel;
+  border-left: 1px solid $color-border;
+  padding: 16px;
+  overflow-y: auto;
+
+  &__title {
+    margin: 0 0 12px;
+    font-size: 13px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    color: $color-muted;
+  }
+
+  &__empty {
+    color: $color-muted;
+    font-size: 12px;
+  }
+
+  &__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid $color-border;
+  }
+
+  &__type {
+    font-weight: 600;
+  }
+
+  &__crumbs {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 2px;
+    margin-bottom: 12px;
+    padding: 6px 8px;
+    background: $color-bg;
+    border-radius: $radius-sm;
+    font-size: 11px;
+  }
+
+  &__crumb {
+    border: 0;
+    background: transparent;
+    color: $color-muted;
+    padding: 2px 6px;
+    border-radius: 3px;
+    cursor: pointer;
+
+    &:hover {
+      color: $color-text;
+      background: $color-panel;
+    }
+
+    &.is-current {
+      color: $color-accent;
+      font-weight: 600;
+    }
+  }
+
+  &__crumb-sep {
+    color: $color-muted;
+    padding: 0 2px;
+  }
+
+  &__delete {
+    border: 1px solid $color-border;
+    background: $color-panel;
+    padding: 4px 10px;
+    border-radius: $radius-sm;
+    color: $color-danger;
+
+    &:hover {
+      border-color: $color-danger;
+    }
+  }
+}
+</style>
