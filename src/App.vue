@@ -1,42 +1,97 @@
 <script setup lang="ts">
-import { onMounted } from 'vue'
+import { computed, watch } from 'vue'
 import TopBar from './components/TopBar.vue'
 import BlocksPanel from './components/BlocksPanel.vue'
 import EditorCanvas from './components/EditorCanvas.vue'
 import PropertiesPanel from './components/PropertiesPanel.vue'
 import ImagePickerModal from './components/ImagePickerModal.vue'
-import MjmlSource from './components/MjmlSource.vue'
+import SourceView from './components/SourceView.vue'
 import EmailSettings from './components/EmailSettings.vue'
-import { useEditorStore } from './stores/editor'
+import ExportModal from './components/ExportModal.vue'
+import { useEditorStore, type MediaAsset } from './stores/editor'
+import type { MjmlJsonDocument } from './utils/mjmlJson'
+
+const props = withDefaults(
+  defineProps<{
+    initialMjml?: string
+    mediaLibrary?: MediaAsset[] | string
+    sendTestUrl?: string
+  }>(),
+  {
+    initialMjml: '',
+    mediaLibrary: () => [],
+    sendTestUrl: '',
+  },
+)
+
+const emit = defineEmits<{
+  change: [payload: { mjml: string; json: MjmlJsonDocument }]
+}>()
 
 const store = useEditorStore()
 
-// Seed a demo library; replace via store.setMediaLibrary([...]) from host app.
-onMounted(() => {
-  if (store.mediaLibrary.length === 0) {
-    store.setMediaLibrary([
-      { url: 'https://placehold.co/600x400/2563eb/fff?text=Hero', label: 'Hero' },
-      { url: 'https://placehold.co/600x400/16a34a/fff?text=Product', label: 'Product' },
-      { url: 'https://placehold.co/600x400/f97316/fff?text=Banner', label: 'Banner' },
-      { url: 'https://placehold.co/600x400/a855f7/fff?text=Lifestyle', label: 'Lifestyle' },
-      { url: 'https://placehold.co/600x400/ef4444/fff?text=Sale', label: 'Sale' },
-      { url: 'https://placehold.co/600x400/0ea5e9/fff?text=Announcement', label: 'Announcement' },
-    ])
+const parsedMediaLibrary = computed<MediaAsset[]>(() => {
+  const raw = props.mediaLibrary
+  if (typeof raw === 'string') {
+    if (!raw.trim()) return []
+    try {
+      const parsed = JSON.parse(raw)
+      return Array.isArray(parsed) ? parsed : []
+    } catch {
+      return []
+    }
   }
+  return raw ?? []
 })
+
+watch(
+  parsedMediaLibrary,
+  (assets) => {
+    store.setMediaLibrary(assets)
+  },
+  { immediate: true },
+)
+
+watch(
+  () => props.sendTestUrl,
+  (url) => {
+    if (url) store.setSendTestUrl(url)
+  },
+  { immediate: true },
+)
+
+watch(
+  () => props.initialMjml,
+  (mjml, prev) => {
+    if (!mjml) return
+    // Apply on first mount, or whenever the host pushes a different value.
+    if (prev === undefined || mjml !== prev) store.loadMjml(mjml)
+  },
+  { immediate: true },
+)
+
+watch(
+  () => store.mjmlString,
+  (mjml) => {
+    emit('change', { mjml, json: store.mjmlJson as MjmlJsonDocument })
+  },
+)
 </script>
 
 <template>
   <div class="app">
     <TopBar />
-    <div class="app__body">
-      <BlocksPanel />
-      <EditorCanvas />
-      <PropertiesPanel />
+    <div class="app__body" :class="`app__body--${store.viewMode}`">
+      <template v-if="store.viewMode === 'visual'">
+        <BlocksPanel />
+        <EditorCanvas />
+        <PropertiesPanel />
+      </template>
+      <SourceView v-else />
     </div>
-    <MjmlSource />
     <ImagePickerModal />
     <EmailSettings />
+    <ExportModal :open="store.exportOpen" @close="store.exportOpen = false" />
   </div>
 </template>
 
@@ -50,9 +105,16 @@ onMounted(() => {
 
   &__body {
     flex: 1;
-    display: grid;
-    grid-template-columns: $panel-left-width 1fr $panel-right-width;
     min-height: 0;
+
+    &--visual {
+      display: grid;
+      grid-template-columns: $panel-left-width 1fr $panel-right-width;
+    }
+
+    &--source {
+      display: block;
+    }
   }
 }
 </style>

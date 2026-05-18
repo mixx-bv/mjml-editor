@@ -12,8 +12,11 @@ const devices: { id: Device; label: string }[] = [
   { id: 'mobile', label: 'Mobile' },
 ]
 
-function toggleSource() {
-  store.sourceVisible = !store.sourceVisible
+function setVisual() {
+  store.viewMode = 'visual'
+}
+function setSource() {
+  store.viewMode = 'source'
 }
 
 const STORAGE_KEY_EMAIL = 'mjed:test-email'
@@ -39,7 +42,7 @@ async function sendTest() {
     const result: any = await mjml2html(store.mjmlString, { validationLevel: 'soft' })
     const html: string = result.html || ''
     if (!html) throw new Error('MJML compiled to empty HTML')
-    const response = await fetch('/api/send-test', {
+    const response = await fetch(store.sendTestUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -93,6 +96,7 @@ onBeforeUnmount(() => document.removeEventListener('click', onDocumentClick))
       <button :disabled="!store.canUndo" @click="store.undo()">Undo</button>
       <button :disabled="!store.canRedo" @click="store.redo()">Redo</button>
       <button @click="store.settingsOpen = true">Settings</button>
+      <button @click="store.exportOpen = true">Export</button>
 
       <div class="topbar__send-wrap">
         <button @click.stop="toggleSendPopover">Send test</button>
@@ -118,13 +122,22 @@ onBeforeUnmount(() => document.removeEventListener('click', onDocumentClick))
         </div>
       </div>
 
-      <button
-        class="topbar__primary"
-        :class="{ 'is-active': store.sourceVisible }"
-        @click="toggleSource"
-      >
-        {{ store.sourceVisible ? 'Hide MJML' : 'View MJML' }}
-      </button>
+      <div class="topbar__view-toggle">
+        <button
+          class="topbar__view-btn"
+          :class="{ 'is-active': store.viewMode === 'visual' }"
+          @click="setVisual"
+        >
+          Visual
+        </button>
+        <button
+          class="topbar__view-btn"
+          :class="{ 'is-active': store.viewMode === 'source' }"
+          @click="setSource"
+        >
+          Source
+        </button>
+      </div>
     </div>
   </header>
 </template>
@@ -191,6 +204,30 @@ onBeforeUnmount(() => document.removeEventListener('click', onDocumentClick))
     background: $color-accent !important;
     color: #fff !important;
     border-color: $color-accent !important;
+  }
+
+  &__view-toggle {
+    display: flex;
+    gap: 2px;
+    background: $color-bg;
+    padding: 3px;
+    border-radius: $radius-md;
+  }
+
+  &__view-btn {
+    border: 0 !important;
+    background: transparent !important;
+    padding: 5px 14px !important;
+    border-radius: $radius-sm;
+    color: $color-muted !important;
+    font-weight: 600;
+    font-size: 12px;
+
+    &.is-active {
+      background: $color-panel !important;
+      color: $color-text !important;
+      box-shadow: $shadow-sm;
+    }
   }
 
   &__send-wrap {

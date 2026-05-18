@@ -1,22 +1,40 @@
 {
-  "name": "mixx-mjml-editor",
-  "private": true,
-  "version": "0.0.0",
+  "name": "@mixx/mjml-editor",
+  "version": "0.1.0",
+  "description": "Standalone MJML email editor as a Web Component. Drop-in <mjml-editor> for any HTML, Inertia/Vue/React/Livewire host.",
   "type": "module",
+  "main": "./dist/mjml-editor.umd.js",
+  "module": "./dist/mjml-editor.es.js",
+  "unpkg": "./dist/mjml-editor.iife.js",
+  "jsdelivr": "./dist/mjml-editor.iife.js",
+  "exports": {
+    ".": {
+      "import": "./dist/mjml-editor.es.js",
+      "require": "./dist/mjml-editor.umd.js"
+    },
+    "./element": "./dist/mjml-editor.iife.js",
+    "./style.css": "./dist/mjml-editor.css",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "sideEffects": [
+    "**/*.css",
+    "./dist/mjml-editor.iife.js"
+  ],
   "scripts": {
     "dev": "vite",
     "build": "vue-tsc -b && vite build",
-    "preview": "vite preview"
+    "build:lib": "vite build --mode lib",
+    "preview": "vite preview",
+    "preview:lib": "vite preview --outDir dist"
   },
   "dependencies": {
-    "@tiptap/extension-link": "^3.22.3",
-    "@tiptap/extension-underline": "^3.22.3",
-    "@tiptap/starter-kit": "^3.22.3",
-    "@tiptap/vue-3": "^3.22.3",
     "cheerio": "^1.2.0",
     "mjml-browser": "^5.0.1",
     "pinia": "^3.0.4",
-    "sass": "^1.99.0",
     "vue": "^3.5.32",
     "vuedraggable": "^4.1.0"
   },
@@ -26,6 +44,7 @@
     "@vitejs/plugin-vue": "^6.0.5",
     "@vue/tsconfig": "^0.9.1",
     "nodemailer": "^8.0.7",
+    "sass": "^1.99.0",
     "typescript": "~6.0.2",
     "vite": "^8.0.4",
     "vue-tsc": "^3.2.6"

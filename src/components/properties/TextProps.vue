@@ -2,14 +2,12 @@
 import AttrField from './AttrField.vue'
 import NumberUnitField from './NumberUnitField.vue'
 import BoxField from './BoxField.vue'
-import RichTextField from './RichTextField.vue'
 
 defineProps<{ nodeId: string }>()
 </script>
 
 <template>
   <div>
-    <RichTextField :node-id="nodeId" />
     <NumberUnitField
       :node-id="nodeId"
       attr-key="font-size"
@@ -54,4 +52,3 @@ defineProps<{ nodeId: string }>()
     <AttrField :node-id="nodeId" attr-key="font-family" label="Font family" placeholder="Arial, sans-serif" />
   </div>
 </template>
-

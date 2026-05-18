@@ -32,7 +32,7 @@ const deviceWidth = computed(() => {
 
 let compileTimer: number | undefined
 watch(
-  () => store.mjmlString,
+  () => store.editorMjml,
   (mjml) => {
     window.clearTimeout(compileTimer)
     compileTimer = window.setTimeout(() => compile(mjml), 80)
@@ -132,22 +132,52 @@ const BRIDGE_SRCDOC = `<!doctype html>
     line-height: inherit !important;
     color: inherit !important;
   }
-  .mjed-edit-root .ql-editor,
-  .mjed-edit-root .ql-editor p,
-  .mjed-edit-root .ql-editor ol,
+  /* Inherit text styles so the editor matches the surrounding mj-text styling. */
+  .mjed-edit-root .ql-editor {
+    font: inherit !important;
+    color: inherit !important;
+    line-height: inherit !important;
+    background: transparent !important;
+    text-align: inherit !important;
+    padding: 0 !important;
+    min-height: 1em !important;
+  }
+  /* <p> in Quill gets flattened to inline + <br> on commit. Match by killing
+     block margins so visual matches the post-flatten rendered output. */
+  .mjed-edit-root .ql-editor p {
+    font: inherit !important;
+    color: inherit !important;
+    line-height: inherit !important;
+    background: transparent !important;
+    text-align: inherit !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+  /* Reset Quill's list styling to native browser defaults so spacing matches
+     the rendered email. */
   .mjed-edit-root .ql-editor ul,
+  .mjed-edit-root .ql-editor ol {
+    font: inherit !important;
+    color: inherit !important;
+    line-height: inherit !important;
+    margin: 1em 0 !important;
+    padding-left: 40px !important;
+    list-style-position: outside !important;
+  }
   .mjed-edit-root .ql-editor li {
     font: inherit !important;
     color: inherit !important;
     line-height: inherit !important;
-    margin: 0 !important;
-    padding: 0 !important;
     background: transparent !important;
     text-align: inherit !important;
+    padding: 0 !important;
+    margin: 0 !important;
   }
-  .mjed-edit-root .ql-editor { min-height: 1em !important; }
-  .mjed-edit-root .ql-editor ol,
-  .mjed-edit-root .ql-editor ul { padding-left: 22px !important; }
+  /* Quill's bullet uses \\2022 (•) which is ~20% smaller than the native disc
+     marker. Scale it up so edit-mode bullets visually match the rendered email. */
+  .mjed-edit-root .ql-editor li[data-list=bullet] > .ql-ui::before {
+    font-size: 1.3em !important;
+  }
   .ql-bubble .ql-tooltip { z-index: 9999 !important; }
 </style>
 <style id="mjed-mjml-styles"></style>
@@ -237,6 +267,7 @@ const BRIDGE_SRCDOC = `<!doctype html>
       modules: {
         toolbar: [
           ['bold', 'italic', 'underline', 'strike'],
+          [{ color: [] }, { background: [] }],
           [{ list: 'ordered' }, { list: 'bullet' }],
           ['link', 'clean'],
         ],

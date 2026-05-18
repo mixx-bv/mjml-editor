@@ -1,11 +1,39 @@
 import { defineStore } from 'pinia'
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import type { ContainerNode, MjmlNode, MjmlNodeType } from '../types/mjml'
 import { isContainer, VALID_PARENT } from '../types/mjml'
 import { createInitialTree, createNode } from '../utils/nodeFactory'
 import { serializeTree } from '../utils/serialize'
+import {
+  documentToMjmlJson,
+  mjmlJsonToTree,
+  parseMjmlString,
+  type MjmlJsonNode,
+} from '../utils/mjmlJson'
+
+const STORAGE_KEY = 'mjed:document'
+const STORAGE_VERSION = 1
+
+interface PersistedDocument {
+  v: number
+  tree: ContainerNode
+  head: { title: string; preview: string }
+}
+
+function loadPersistedDocument(): PersistedDocument | null {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY)
+    if (!raw) return null
+    const parsed = JSON.parse(raw) as PersistedDocument
+    if (parsed.v !== STORAGE_VERSION || !parsed.tree) return null
+    return parsed
+  } catch {
+    return null
+  }
+}
 
 export type Device = 'desktop' | 'tablet' | 'mobile'
+export type ViewMode = 'visual' | 'source'
 
 export interface MediaAsset {
   url: string
@@ -32,20 +60,48 @@ function findNode(root: MjmlNode, id: string, parent: ContainerNode | null = nul
 const MAX_HISTORY = 50
 
 export const useEditorStore = defineStore('editor', () => {
-  const tree = ref<ContainerNode>(createInitialTree())
+  const persisted = loadPersistedDocument()
+  const tree = ref<ContainerNode>(persisted?.tree ?? createInitialTree())
   const selectedId = ref<string | null>(null)
   const device = ref<Device>('desktop')
   const history = ref<string[]>([])
   const future = ref<string[]>([])
   const mediaLibrary = ref<MediaAsset[]>([])
   const pickerOpen = ref(false)
-  const sourceVisible = ref(false)
   const settingsOpen = ref(false)
-  const head = ref({ title: '', preview: '' })
+  const exportOpen = ref(false)
+  const viewMode = ref<ViewMode>('visual')
+  const head = ref(persisted?.head ?? { title: '', preview: '' })
+  const sendTestUrl = ref<string>('/api/send-test')
   let pickerResolve: ((url: string | null) => void) | null = null
+
+  let persistTimer: number | undefined
+  watch(
+    [tree, head],
+    () => {
+      window.clearTimeout(persistTimer)
+      persistTimer = window.setTimeout(() => {
+        try {
+          const doc: PersistedDocument = {
+            v: STORAGE_VERSION,
+            tree: tree.value,
+            head: head.value,
+          }
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(doc))
+        } catch {
+          // ignore quota errors
+        }
+      }, 300)
+    },
+    { deep: true },
+  )
 
   function setMediaLibrary(assets: MediaAsset[]) {
     mediaLibrary.value = assets
+  }
+
+  function setSendTestUrl(url: string) {
+    if (url) sendTestUrl.value = url
   }
 
   function openPicker(): Promise<string | null> {
@@ -86,7 +142,74 @@ export const useEditorStore = defineStore('editor', () => {
     return chain
   })
 
+  // Public/clean MJML (no editor-internal css-class IDs).
+  // Used by source view, export modal, send-test, and external consumers.
   const mjmlString = computed(() => serializeTree(tree.value, head.value))
+
+  // MJML with editor css-class injected (mjed-{id} markers).
+  // Used by the visual EditorCanvas iframe to wire clicks back to tree nodes.
+  const editorMjml = computed(() =>
+    serializeTree(tree.value, head.value, { includeEditorIds: true }),
+  )
+
+  const mjmlJson = computed(() => documentToMjmlJson(tree.value, head.value))
+
+  function loadDocument(doc: { tree: ContainerNode; head?: { title?: string; preview?: string } }): boolean {
+    if (!doc.tree || doc.tree.type !== 'mj-body') return false
+    tree.value = doc.tree
+    head.value = {
+      title: doc.head?.title ?? '',
+      preview: doc.head?.preview ?? '',
+    }
+    selectedId.value = null
+    history.value = []
+    future.value = []
+    return true
+  }
+
+  function loadMjml(mjml: string): boolean {
+    const parsed = parseMjmlString(mjml)
+    if (!parsed) return false
+    return loadDocument(parsed)
+  }
+
+  // Like loadMjml, but preserves undo history (snapshots first). Use for
+  // continuous source-mode edits where the user expects undo to work.
+  function applyMjml(mjml: string): boolean {
+    const parsed = parseMjmlString(mjml)
+    if (!parsed) return false
+    snapshot()
+    tree.value = parsed.body
+    head.value = { title: parsed.head.title, preview: parsed.head.preview }
+    return true
+  }
+
+  function loadMjmlJson(json: MjmlJsonNode | { tagName: 'mjml'; children?: MjmlJsonNode[] }): boolean {
+    if (!json || typeof json !== 'object') return false
+    let bodyJson: MjmlJsonNode | undefined
+    let headJson: MjmlJsonNode | undefined
+    if (json.tagName === 'mjml' && 'children' in json && Array.isArray(json.children)) {
+      for (const child of json.children) {
+        if (child.tagName === 'mj-body') bodyJson = child
+        else if (child.tagName === 'mj-head') headJson = child
+      }
+    } else if (json.tagName === 'mj-body') {
+      bodyJson = json as MjmlJsonNode
+    } else {
+      return false
+    }
+    if (!bodyJson) return false
+    const body = mjmlJsonToTree(bodyJson)
+    if (!body || body.type !== 'mj-body' || !isContainer(body)) return false
+    const newHead = { title: '', preview: '' }
+    if (headJson?.children) {
+      for (const c of headJson.children) {
+        if (c.tagName === 'mj-title' && c.content) newHead.title = c.content
+        else if (c.tagName === 'mj-preview' && c.content) newHead.preview = c.content
+      }
+    }
+    return loadDocument({ tree: body, head: newHead })
+  }
 
   function snapshot() {
     history.value.push(JSON.stringify(tree.value))
@@ -184,13 +307,22 @@ export const useEditorStore = defineStore('editor', () => {
     device,
     mediaLibrary,
     pickerOpen,
-    sourceVisible,
     settingsOpen,
+    exportOpen,
+    viewMode,
     head,
+    sendTestUrl,
     setMediaLibrary,
+    setSendTestUrl,
     openPicker,
     closePicker,
     mjmlString,
+    editorMjml,
+    mjmlJson,
+    loadMjml,
+    loadMjmlJson,
+    loadDocument,
+    applyMjml,
     canUndo: computed(() => history.value.length > 0),
     canRedo: computed(() => future.value.length > 0),
     select,

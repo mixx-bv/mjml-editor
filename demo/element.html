@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>&lt;mjml-editor&gt; web component demo</title>
+    <link rel="stylesheet" href="../dist/mjml-editor.css" />
+    <style>
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        font-family:
+          system-ui,
+          -apple-system,
+          sans-serif;
+      }
+      .host {
+        display: grid;
+        grid-template-rows: auto 1fr auto;
+        height: 100vh;
+      }
+      header,
+      footer {
+        padding: 8px 16px;
+        background: #0f172a;
+        color: #f1f5f9;
+        font-size: 13px;
+      }
+      header strong {
+        color: #fff;
+      }
+      footer {
+        background: #1e293b;
+        white-space: pre-wrap;
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 11px;
+        max-height: 180px;
+        overflow: auto;
+      }
+      mjml-editor {
+        display: block;
+        min-height: 0;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="host">
+      <header><strong>Web Component test</strong> — change events stream into the footer.</header>
+      <mjml-editor id="editor" send-test-url="/api/send-test"></mjml-editor>
+      <footer id="log">(no change events yet)</footer>
+    </div>
+
+    <script type="module" src="../dist/mjml-editor.es.js"></script>
+    <script>
+      const el = document.getElementById('editor')
+      const log = document.getElementById('log')
+
+      // Complex props must be set as properties (attributes are strings only).
+      el.mediaLibrary = [
+        { url: 'https://placehold.co/600x400/2563eb/fff?text=Hero', label: 'Hero' },
+        { url: 'https://placehold.co/600x400/16a34a/fff?text=Product', label: 'Product' },
+        { url: 'https://placehold.co/600x400/f97316/fff?text=Banner', label: 'Banner' },
+      ]
+
+      let lastMjml = ''
+      el.addEventListener('change', (e) => {
+        lastMjml = e.detail.mjml
+        log.textContent =
+          'change @ ' +
+          new Date().toLocaleTimeString() +
+          ' — ' +
+          lastMjml.length +
+          ' chars\n\n' +
+          lastMjml.slice(0, 600) +
+          (lastMjml.length > 600 ? '\n…' : '')
+      })
+    </script>
+  </body>
+</html>
