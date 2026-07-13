@@ -1,6 +1,8 @@
 import type { ContainerNode, MjmlNode, MjmlNodeType } from '../types/mjml'
-import { isContainer } from '../types/mjml'
+import { CONTAINER_TYPES, isContainer, VALID_PARENT } from '../types/mjml'
 import { uid } from './nodeFactory'
+import { sanitizeInlineHtml } from './sanitize'
+import { parseEditorClass } from './mjedMarker'
 
 /**
  * MJML's canonical JSON format (per https://documentation.mjml.io/#using-mjml-in-json).
@@ -16,20 +18,17 @@ export interface MjmlJsonNode {
 
 export interface MjmlJsonDocument {
   tagName: 'mjml'
-  children: [
-    ...(
-      | {
-          tagName: 'mj-head'
-          children: MjmlJsonNode[]
-        }
-      | MjmlJsonNode
-    )[],
-  ]
+  children: MjmlJsonNode[]
 }
 
 export function treeToMjmlJson(node: MjmlNode): MjmlJsonNode {
   const out: MjmlJsonNode = { tagName: node.type }
-  if (Object.keys(node.attrs).length > 0) out.attributes = { ...node.attrs }
+  // Drop empty-string attrs so the JSON export matches the MJML export, which
+  // strips them too (serialize.ts).
+  const attrs = Object.fromEntries(
+    Object.entries(node.attrs).filter(([, v]) => v !== '' && v != null),
+  )
+  if (Object.keys(attrs).length > 0) out.attributes = attrs
   if (isContainer(node)) {
     if (node.children.length > 0) out.children = node.children.map(treeToMjmlJson)
   } else if (node.content !== undefined && node.content !== '') {
@@ -46,19 +45,25 @@ export function documentToMjmlJson(
   if (head.title?.trim()) headChildren.push({ tagName: 'mj-title', content: head.title.trim() })
   if (head.preview?.trim()) headChildren.push({ tagName: 'mj-preview', content: head.preview.trim() })
   const children: MjmlJsonNode[] = []
-  if (headChildren.length) children.push({ tagName: 'mj-head', children: headChildren } as MjmlJsonNode)
+  if (headChildren.length) children.push({ tagName: 'mj-head', children: headChildren })
   children.push(treeToMjmlJson(body))
-  return { tagName: 'mjml', children: children as MjmlJsonDocument['children'] }
+  return { tagName: 'mjml', children }
 }
 
-const VALID_TYPES: Set<MjmlNodeType> = new Set([
-  'mj-body', 'mj-section', 'mj-column', 'mj-text', 'mj-image', 'mj-button',
-])
-const CONTAINER_TYPES: Set<MjmlNodeType> = new Set(['mj-body', 'mj-section', 'mj-column'])
+// Derived from the single source of truth in types/mjml rather than re-listed.
+const VALID_TYPES = new Set<MjmlNodeType>(Object.keys(VALID_PARENT) as MjmlNodeType[])
 
 export interface ParsedMjmlDocument {
   body: ContainerNode
   head: { title: string; preview: string }
+}
+
+// `text/html` ignores a trailing slash on non-void elements, so `<mj-image />`
+// stays open and swallows following siblings. Expand self-closing mj-* tags to
+// explicit open/close pairs first. The quoted-string alternatives let a `>`
+// inside an attribute value pass through without ending the match early.
+function normalizeSelfClosing(mjml: string): string {
+  return mjml.replace(/<(mj-[a-z-]+)((?:[^>"']|"[^"]*"|'[^']*')*?)\/>/gi, '<$1$2></$1>')
 }
 
 /**
@@ -69,7 +74,7 @@ export interface ParsedMjmlDocument {
 export function parseMjmlString(mjml: string): ParsedMjmlDocument | null {
   if (typeof mjml !== 'string' || !mjml.trim()) return null
   const parser = new DOMParser()
-  const doc = parser.parseFromString(mjml, 'text/html')
+  const doc = parser.parseFromString(normalizeSelfClosing(mjml), 'text/html')
   const root = doc.querySelector('mjml')
   if (!root) return null
 
@@ -98,6 +103,12 @@ const ID_PREFIX: Record<MjmlNodeType, string> = {
   'mj-button': 'btn',
 }
 
+// mj-text content is inline HTML and must be sanitized at the boundary (C2);
+// other leaves carry plain text that is escaped at serialize time.
+function leafContent(type: MjmlNodeType, raw: string): string {
+  return type === 'mj-text' ? sanitizeInlineHtml(raw) : raw
+}
+
 function elementToInternal(el: Element): MjmlNode | null {
   const type = el.tagName.toLowerCase() as MjmlNodeType
   if (!VALID_TYPES.has(type)) return null
@@ -105,14 +116,13 @@ function elementToInternal(el: Element): MjmlNode | null {
   let preservedId: string | undefined
   for (const attr of Array.from(el.attributes)) {
     if (attr.name === 'css-class') {
-      const m = attr.value.match(/mjed-([a-z]+-[a-z0-9]+-[a-z0-9]+)/)
-      if (m) preservedId = m[1]
+      preservedId = parseEditorClass(attr.value)?.id
       continue
     }
     attrs[attr.name] = attr.value
   }
   const base = { id: preservedId ?? uid(ID_PREFIX[type]), type, attrs }
-  if (CONTAINER_TYPES.has(type)) {
+  if (CONTAINER_TYPES.includes(type)) {
     const children: MjmlNode[] = []
     for (const child of Array.from(el.children)) {
       const node = elementToInternal(child)
@@ -120,7 +130,7 @@ function elementToInternal(el: Element): MjmlNode | null {
     }
     return { ...base, children } as ContainerNode
   }
-  return { ...base, content: el.innerHTML.trim() } as MjmlNode
+  return { ...base, content: leafContent(type, el.innerHTML.trim()) } as MjmlNode
 }
 
 export function mjmlJsonToTree(input: MjmlJsonNode): MjmlNode | null {
@@ -128,21 +138,12 @@ export function mjmlJsonToTree(input: MjmlJsonNode): MjmlNode | null {
   const type = input.tagName as MjmlNodeType
   if (!VALID_TYPES.has(type)) return null
 
-  const idPrefix: Record<MjmlNodeType, string> = {
-    'mj-body': 'body',
-    'mj-section': 'sec',
-    'mj-column': 'col',
-    'mj-text': 'txt',
-    'mj-image': 'img',
-    'mj-button': 'btn',
-  }
-
-  const base = { id: uid(idPrefix[type]), type, attrs: { ...(input.attributes || {}) } }
-  if (CONTAINER_TYPES.has(type)) {
+  const base = { id: uid(ID_PREFIX[type]), type, attrs: { ...(input.attributes || {}) } }
+  if (CONTAINER_TYPES.includes(type)) {
     const children = (input.children || [])
       .map(mjmlJsonToTree)
       .filter((n): n is MjmlNode => n !== null)
     return { ...base, children } as ContainerNode
   }
-  return { ...base, content: input.content ?? '' } as MjmlNode
+  return { ...base, content: leafContent(type, input.content ?? '') } as MjmlNode
 }

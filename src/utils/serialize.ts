@@ -1,4 +1,5 @@
 import { isContainer, type MjmlNode } from '../types/mjml'
+import { editorClass } from './mjedMarker'
 
 const escapeAttr = (v: string) => v.replace(/"/g, '&quot;')
 const escapeText = (v: string) =>
@@ -13,7 +14,7 @@ function serializeAttrs(
   const pairs = Object.entries(attrs)
     .filter(([, v]) => v !== '' && v != null)
     .map(([k, v]) => `${k}="${escapeAttr(v)}"`)
-  if (includeEditorIds) pairs.push(`css-class="mjed-${id} mjed-t-${type}"`)
+  if (includeEditorIds) pairs.push(`css-class="${editorClass(id, type)}"`)
   return pairs.length ? ' ' + pairs.join(' ') : ''
 }
 
@@ -23,7 +24,11 @@ export function serializeNode(node: MjmlNode, includeEditorIds: boolean): string
     const inner = node.children.map((c) => serializeNode(c, includeEditorIds)).join('\n')
     return `<${node.type}${attrStr}>\n${inner}\n</${node.type}>`
   }
-  const content = node.content ?? ''
+  // mj-text holds sanitized inline HTML (must pass through verbatim); mj-button
+  // is a plain-text label, so a stray `<`/`&` there must be escaped to stay
+  // valid markup for mjml2html.
+  const raw = node.content ?? ''
+  const content = node.type === 'mj-button' ? escapeText(raw) : raw
   return `<${node.type}${attrStr}>${content}</${node.type}>`
 }
 

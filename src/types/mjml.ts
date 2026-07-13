@@ -26,10 +26,9 @@ export interface LeafNode extends BaseNode {
 
 export type MjmlNode = ContainerNode | LeafNode
 
-export const isContainer = (n: MjmlNode): n is ContainerNode =>
-  n.type === 'mj-body' || n.type === 'mj-section' || n.type === 'mj-column'
+export const CONTAINER_TYPES: MjmlNodeType[] = ['mj-body', 'mj-section', 'mj-column']
 
-export const LEAF_TYPES: MjmlNodeType[] = ['mj-text', 'mj-image', 'mj-button']
+export const isContainer = (n: MjmlNode): n is ContainerNode => CONTAINER_TYPES.includes(n.type)
 
 export const VALID_PARENT: Record<MjmlNodeType, MjmlNodeType[]> = {
   'mj-body': [],
