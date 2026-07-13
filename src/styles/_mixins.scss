@@ -1,0 +1,25 @@
+@use 'variables' as *;
+
+// 11px muted uppercase label used by every field in the properties panel.
+@mixin field-label {
+  font-size: 11px;
+  color: $color-muted;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+// Shared form-control look (border, radius, focus ring). Used by the
+// App{Input,Select,Textarea} base components so the styling lives in one place.
+@mixin control-base {
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid $color-border;
+  border-radius: $radius-sm;
+  background: $color-panel;
+  color: $color-text;
+
+  &:focus {
+    outline: 2px solid $color-accent-soft;
+    border-color: $color-accent;
+  }
+}
