@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { ref, watch } from 'vue'
 import NumberUnit from './NumberUnit.vue'
-import { useEditorStore } from '../../stores/editor'
+import { useNodeAttr } from '../../../composables/useNodeAttr'
 
 const props = withDefaults(
   defineProps<{
@@ -13,12 +13,7 @@ const props = withDefaults(
   { units: () => ['px', '%'] },
 )
 
-const store = useEditorStore()
-
-const rawValue = computed({
-  get: () => store.findNode(props.nodeId)?.node.attrs[props.attrKey] ?? '',
-  set: (v: string) => store.updateAttr(props.nodeId, props.attrKey, v),
-})
+const { value: rawValue, onFocus } = useNodeAttr(() => props.nodeId, () => props.attrKey)
 
 const linked = ref(true)
 
@@ -57,6 +52,7 @@ watch(
     bottom.value = p.bottom
     left.value = p.left
     if (p.top === p.right && p.right === p.bottom && p.bottom === p.left) linked.value = true
+    else linked.value = false
   },
   { immediate: true },
 )
@@ -102,7 +98,7 @@ function toggleLink() {
         :model-value="top"
         :units="units"
         @update:model-value="(v) => updateSide('top', v)"
-        @focus="store.beginEdit()"
+        @focus="onFocus"
       />
     </div>
 
@@ -113,7 +109,7 @@ function toggleLink() {
           :model-value="top"
           :units="units"
           @update:model-value="(v) => updateSide('top', v)"
-          @focus="store.beginEdit()"
+          @focus="onFocus"
         />
       </label>
       <label class="box__side">
@@ -122,7 +118,7 @@ function toggleLink() {
           :model-value="right"
           :units="units"
           @update:model-value="(v) => updateSide('right', v)"
-          @focus="store.beginEdit()"
+          @focus="onFocus"
         />
       </label>
       <label class="box__side">
@@ -131,7 +127,7 @@ function toggleLink() {
           :model-value="bottom"
           :units="units"
           @update:model-value="(v) => updateSide('bottom', v)"
-          @focus="store.beginEdit()"
+          @focus="onFocus"
         />
       </label>
       <label class="box__side">
@@ -140,7 +136,7 @@ function toggleLink() {
           :model-value="left"
           :units="units"
           @update:model-value="(v) => updateSide('left', v)"
-          @focus="store.beginEdit()"
+          @focus="onFocus"
         />
       </label>
     </div>
@@ -148,7 +144,8 @@ function toggleLink() {
 </template>
 
 <style lang="scss" scoped>
-@use '../../styles/variables' as *;
+@use '../../../styles/variables' as *;
+@use '../../../styles/mixins' as *;
 
 .box {
   display: grid;
@@ -162,10 +159,7 @@ function toggleLink() {
   }
 
   &__label {
-    font-size: 11px;
-    color: $color-muted;
-    text-transform: uppercase;
-    letter-spacing: 0.4px;
+    @include field-label;
   }
 
   &__link {

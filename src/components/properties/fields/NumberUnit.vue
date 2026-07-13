@@ -65,24 +65,18 @@ function onUnitChange(e: Event) {
 </template>
 
 <style lang="scss" scoped>
-@use '../../styles/variables' as *;
+@use '../../../styles/variables' as *;
+@use '../../../styles/mixins' as *;
 
+// Composite control (number + unit) with its own parse logic, so it shares the
+// form-control look via the control-base mixin rather than wrapping AppInput.
 .nu {
   display: grid;
   grid-template-columns: 1fr auto;
   gap: 4px;
 
   &__num {
-    width: 100%;
-    padding: 6px 8px;
-    border: 1px solid $color-border;
-    border-radius: $radius-sm;
-    background: $color-panel;
-
-    &:focus {
-      outline: 2px solid $color-accent-soft;
-      border-color: $color-accent;
-    }
+    @include control-base;
 
     /* Hide default number spinners for a cleaner look */
     &::-webkit-inner-spin-button,
@@ -94,17 +88,10 @@ function onUnitChange(e: Event) {
   }
 
   &__unit {
+    @include control-base;
     padding: 6px 6px;
-    border: 1px solid $color-border;
-    border-radius: $radius-sm;
-    background: $color-panel;
     color: $color-muted;
     min-width: 52px;
-
-    &:focus {
-      outline: 2px solid $color-accent-soft;
-      border-color: $color-accent;
-    }
   }
 }
 </style>

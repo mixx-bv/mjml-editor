@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import AttrField from './AttrField.vue'
-import ImageField from './ImageField.vue'
-import NumberUnitField from './NumberUnitField.vue'
-import BoxField from './BoxField.vue'
+import AttrField from '../fields/AttrField.vue'
+import ImageField from '../fields/ImageField.vue'
+import NumberUnitField from '../fields/NumberUnitField.vue'
+import BoxField from '../fields/BoxField.vue'
 
 defineProps<{ nodeId: string }>()
 </script>

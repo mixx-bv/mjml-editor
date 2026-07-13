@@ -1,13 +1,14 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { useEditorStore } from '../stores/editor'
-import { isContainer } from '../types/mjml'
-import BodyProps from './properties/BodyProps.vue'
-import ColumnProps from './properties/ColumnProps.vue'
-import SectionProps from './properties/SectionProps.vue'
-import TextProps from './properties/TextProps.vue'
-import ImageProps from './properties/ImageProps.vue'
-import ButtonProps from './properties/ButtonProps.vue'
+import { useEditorStore } from '../../stores/editor'
+import { isContainer } from '../../types/mjml'
+import BodyProps from './editors/BodyProps.vue'
+import ColumnProps from './editors/ColumnProps.vue'
+import SectionProps from './editors/SectionProps.vue'
+import TextProps from './editors/TextProps.vue'
+import ImageProps from './editors/ImageProps.vue'
+import ButtonProps from './editors/ButtonProps.vue'
+import AppButton from '../app/AppButton.vue'
 
 const store = useEditorStore()
 
@@ -67,9 +68,14 @@ function onDelete() {
 
       <div class="props__header">
         <span class="props__type">{{ typeLabel }}</span>
-        <button v-if="store.selected.type !== 'mj-body'" class="props__delete" @click="onDelete">
+        <AppButton
+          v-if="store.selected.type !== 'mj-body'"
+          variant="danger"
+          size="sm"
+          @click="onDelete"
+        >
           {{ deleteLabel }}
-        </button>
+        </AppButton>
       </div>
 
       <BodyProps v-if="store.selected.type === 'mj-body'" :node-id="store.selected.id" />
@@ -83,7 +89,7 @@ function onDelete() {
 </template>
 
 <style lang="scss" scoped>
-@use '../styles/variables' as *;
+@use '../../styles/variables' as *;
 
 .props {
   background: $color-panel;
@@ -152,18 +158,6 @@ function onDelete() {
   &__crumb-sep {
     color: $color-muted;
     padding: 0 2px;
-  }
-
-  &__delete {
-    border: 1px solid $color-border;
-    background: $color-panel;
-    padding: 4px 10px;
-    border-radius: $radius-sm;
-    color: $color-danger;
-
-    &:hover {
-      border-color: $color-danger;
-    }
   }
 }
 </style>

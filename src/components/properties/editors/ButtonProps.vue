@@ -1,28 +1,14 @@
 <script setup lang="ts">
-import { computed } from 'vue'
-import AttrField from './AttrField.vue'
-import NumberUnitField from './NumberUnitField.vue'
-import BoxField from './BoxField.vue'
-import { useEditorStore } from '../../stores/editor'
+import AttrField from '../fields/AttrField.vue'
+import NumberUnitField from '../fields/NumberUnitField.vue'
+import BoxField from '../fields/BoxField.vue'
 
-const props = defineProps<{ nodeId: string }>()
-const store = useEditorStore()
-
-const label = computed({
-  get: () => {
-    const n = store.findNode(props.nodeId)?.node
-    return (n && 'content' in n ? n.content : '') ?? ''
-  },
-  set: (v: string) => store.updateContent(props.nodeId, v),
-})
+defineProps<{ nodeId: string }>()
 </script>
 
 <template>
   <div>
-    <label class="inline-field">
-      <span>Button label</span>
-      <input v-model="label" @focus="store.beginEdit()" />
-    </label>
+    <AttrField :node-id="nodeId" label="Button label" bind="content" />
     <AttrField :node-id="nodeId" attr-key="href" label="Link URL" type="url" placeholder="https://…" />
     <AttrField :node-id="nodeId" attr-key="background-color" label="Background color" type="color" />
     <AttrField :node-id="nodeId" attr-key="color" label="Text color" type="color" />
@@ -63,33 +49,3 @@ const label = computed({
     <BoxField :node-id="nodeId" attr-key="inner-padding" label="Inner padding" />
   </div>
 </template>
-
-<style lang="scss" scoped>
-@use '../../styles/variables' as *;
-
-.inline-field {
-  display: grid;
-  gap: 4px;
-  margin-bottom: 10px;
-
-  span {
-    font-size: 11px;
-    color: $color-muted;
-    text-transform: uppercase;
-    letter-spacing: 0.4px;
-  }
-
-  input {
-    padding: 6px 8px;
-    border: 1px solid $color-border;
-    border-radius: $radius-sm;
-    background: $color-panel;
-    color: $color-text;
-
-    &:focus {
-      outline: 2px solid $color-accent-soft;
-      border-color: $color-accent;
-    }
-  }
-}
-</style>
