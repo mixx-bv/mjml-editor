@@ -1,14 +1,15 @@
 <script setup lang="ts">
 import { computed, watch } from 'vue'
-import TopBar from './components/TopBar.vue'
-import BlocksPanel from './components/BlocksPanel.vue'
-import EditorCanvas from './components/EditorCanvas.vue'
-import PropertiesPanel from './components/PropertiesPanel.vue'
-import ImagePickerModal from './components/ImagePickerModal.vue'
-import SourceView from './components/SourceView.vue'
-import EmailSettings from './components/EmailSettings.vue'
-import ExportModal from './components/ExportModal.vue'
-import { useEditorStore, type MediaAsset } from './stores/editor'
+import TopBar from './components/topbar/TopBar.vue'
+import BlocksPanel from './components/blocks/BlocksPanel.vue'
+import EditorCanvas from './components/canvas/EditorCanvas.vue'
+import PropertiesPanel from './components/properties/PropertiesPanel.vue'
+import ImagePickerModal from './components/modals/ImagePickerModal.vue'
+import SourceView from './components/source/SourceView.vue'
+import EmailSettings from './components/modals/EmailSettings.vue'
+import ExportModal from './components/modals/ExportModal.vue'
+import { useEditorStore } from './stores/editor'
+import { useUiStore, type MediaAsset } from './stores/ui'
 import type { MjmlJsonDocument } from './utils/mjmlJson'
 
 const props = withDefaults(
@@ -29,6 +30,7 @@ const emit = defineEmits<{
 }>()
 
 const store = useEditorStore()
+const ui = useUiStore()
 
 const parsedMediaLibrary = computed<MediaAsset[]>(() => {
   const raw = props.mediaLibrary
@@ -47,7 +49,7 @@ const parsedMediaLibrary = computed<MediaAsset[]>(() => {
 watch(
   parsedMediaLibrary,
   (assets) => {
-    store.setMediaLibrary(assets)
+    ui.setMediaLibrary(assets)
   },
   { immediate: true },
 )
@@ -55,7 +57,7 @@ watch(
 watch(
   () => props.sendTestUrl,
   (url) => {
-    if (url) store.setSendTestUrl(url)
+    if (url) ui.setSendTestUrl(url)
   },
   { immediate: true },
 )
@@ -70,10 +72,16 @@ watch(
   { immediate: true },
 )
 
+// Debounce the host change-event so a burst of keystrokes collapses into one
+// emit (and one JSON serialization) instead of firing per character (M8).
+let changeTimer: number | undefined
 watch(
   () => store.mjmlString,
   (mjml) => {
-    emit('change', { mjml, json: store.mjmlJson as MjmlJsonDocument })
+    window.clearTimeout(changeTimer)
+    changeTimer = window.setTimeout(() => {
+      emit('change', { mjml, json: store.mjmlJson })
+    }, 250)
   },
 )
 </script>
@@ -81,8 +89,8 @@ watch(
 <template>
   <div class="app">
     <TopBar />
-    <div class="app__body" :class="`app__body--${store.viewMode}`">
-      <template v-if="store.viewMode === 'visual'">
+    <div class="app__body" :class="`app__body--${ui.viewMode}`">
+      <template v-if="ui.viewMode === 'visual'">
         <BlocksPanel />
         <EditorCanvas />
         <PropertiesPanel />
@@ -91,7 +99,7 @@ watch(
     </div>
     <ImagePickerModal />
     <EmailSettings />
-    <ExportModal :open="store.exportOpen" @close="store.exportOpen = false" />
+    <ExportModal :open="ui.exportOpen" @close="ui.exportOpen = false" />
   </div>
 </template>
 
