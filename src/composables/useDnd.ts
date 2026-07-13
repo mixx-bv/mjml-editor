@@ -16,6 +16,9 @@ export interface DropSlot {
   childType: MjmlNodeType
   index: number
   childrenCount: number
+  // Ids of the parent's current children, so the overlay can resolve child rects
+  // without re-walking the tree per slot (M10).
+  childIds: string[]
 }
 
 export function slotKey(s: DropSlot): string {
@@ -34,18 +37,23 @@ export function useDnd() {
     if (!t) return []
     const validParents = VALID_PARENT[t]
     if (!validParents.length) return []
+    // Capture the narrowed (non-null) type so it survives into the nested
+    // `walk` closure — TS drops control-flow narrowing across function bounds.
+    const childType = t
     const out: DropSlot[] = []
     function walk(node: MjmlNode) {
       if (!isContainer(node)) return
       if (validParents.includes(node.type)) {
         const count = node.children.length
+        const childIds = node.children.map((c) => c.id)
         for (let i = 0; i <= count; i++) {
           out.push({
             parentId: node.id,
             parentType: node.type,
-            childType: t,
+            childType,
             index: i,
             childrenCount: count,
+            childIds,
           })
         }
       }
