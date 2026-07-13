@@ -1,45 +1,13 @@
 import { defineStore } from 'pinia'
-import { computed, ref, watch } from 'vue'
+import { computed, ref } from 'vue'
 import type { ContainerNode, MjmlNode, MjmlNodeType } from '../types/mjml'
 import { isContainer, VALID_PARENT } from '../types/mjml'
-import { createInitialTree, createNode } from '../utils/nodeFactory'
+import { createInitialTree } from '../utils/nodeFactory'
 import { serializeTree } from '../utils/serialize'
-import {
-  documentToMjmlJson,
-  mjmlJsonToTree,
-  parseMjmlString,
-  type MjmlJsonNode,
-} from '../utils/mjmlJson'
-
-const STORAGE_KEY = 'mjed:document'
-const STORAGE_VERSION = 1
-
-interface PersistedDocument {
-  v: number
-  tree: ContainerNode
-  head: { title: string; preview: string }
-}
-
-function loadPersistedDocument(): PersistedDocument | null {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    if (!raw) return null
-    const parsed = JSON.parse(raw) as PersistedDocument
-    if (parsed.v !== STORAGE_VERSION || !parsed.tree) return null
-    return parsed
-  } catch {
-    return null
-  }
-}
-
-export type Device = 'desktop' | 'tablet' | 'mobile'
-export type ViewMode = 'visual' | 'source'
-
-export interface MediaAsset {
-  url: string
-  label?: string
-  thumbnail?: string
-}
+import { sanitizeUrl } from '../utils/sanitize'
+import { documentToMjmlJson, parseMjmlString } from '../utils/mjmlJson'
+import { loadPersistedDocument, persistDocument } from '../utils/documentPersistence'
+import { useHistory } from '../composables/useHistory'
 
 interface NodeSearchHit {
   node: MjmlNode
@@ -57,67 +25,13 @@ function findNode(root: MjmlNode, id: string, parent: ContainerNode | null = nul
   return null
 }
 
-const MAX_HISTORY = 50
-
 export const useEditorStore = defineStore('editor', () => {
   const persisted = loadPersistedDocument()
   const tree = ref<ContainerNode>(persisted?.tree ?? createInitialTree())
   const selectedId = ref<string | null>(null)
-  const device = ref<Device>('desktop')
-  const history = ref<string[]>([])
-  const future = ref<string[]>([])
-  const mediaLibrary = ref<MediaAsset[]>([])
-  const pickerOpen = ref(false)
-  const settingsOpen = ref(false)
-  const exportOpen = ref(false)
-  const viewMode = ref<ViewMode>('visual')
   const head = ref(persisted?.head ?? { title: '', preview: '' })
-  const sendTestUrl = ref<string>('/api/send-test')
-  let pickerResolve: ((url: string | null) => void) | null = null
 
-  let persistTimer: number | undefined
-  watch(
-    [tree, head],
-    () => {
-      window.clearTimeout(persistTimer)
-      persistTimer = window.setTimeout(() => {
-        try {
-          const doc: PersistedDocument = {
-            v: STORAGE_VERSION,
-            tree: tree.value,
-            head: head.value,
-          }
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(doc))
-        } catch {
-          // ignore quota errors
-        }
-      }, 300)
-    },
-    { deep: true },
-  )
-
-  function setMediaLibrary(assets: MediaAsset[]) {
-    mediaLibrary.value = assets
-  }
-
-  function setSendTestUrl(url: string) {
-    if (url) sendTestUrl.value = url
-  }
-
-  function openPicker(): Promise<string | null> {
-    pickerOpen.value = true
-    return new Promise((resolve) => {
-      pickerResolve = resolve
-    })
-  }
-
-  function closePicker(url: string | null) {
-    pickerOpen.value = false
-    if (pickerResolve) {
-      pickerResolve(url)
-      pickerResolve = null
-    }
-  }
+  const { snapshot, undo, redo, reset: resetHistory, canUndo, canRedo } = useHistory(tree)
 
   const selected = computed<MjmlNode | null>(() => {
     if (!selectedId.value) return null
@@ -154,6 +68,9 @@ export const useEditorStore = defineStore('editor', () => {
 
   const mjmlJson = computed(() => documentToMjmlJson(tree.value, head.value))
 
+  // Persist off the serialized signal (defined above), not a deep tree watch (M9).
+  persistDocument(tree, head, mjmlString)
+
   function loadDocument(doc: { tree: ContainerNode; head?: { title?: string; preview?: string } }): boolean {
     if (!doc.tree || doc.tree.type !== 'mj-body') return false
     tree.value = doc.tree
@@ -162,15 +79,14 @@ export const useEditorStore = defineStore('editor', () => {
       preview: doc.head?.preview ?? '',
     }
     selectedId.value = null
-    history.value = []
-    future.value = []
+    resetHistory()
     return true
   }
 
   function loadMjml(mjml: string): boolean {
     const parsed = parseMjmlString(mjml)
     if (!parsed) return false
-    return loadDocument(parsed)
+    return loadDocument({ tree: parsed.body, head: parsed.head })
   }
 
   // Like loadMjml, but preserves undo history (snapshots first). Use for
@@ -184,71 +100,12 @@ export const useEditorStore = defineStore('editor', () => {
     return true
   }
 
-  function loadMjmlJson(json: MjmlJsonNode | { tagName: 'mjml'; children?: MjmlJsonNode[] }): boolean {
-    if (!json || typeof json !== 'object') return false
-    let bodyJson: MjmlJsonNode | undefined
-    let headJson: MjmlJsonNode | undefined
-    if (json.tagName === 'mjml' && 'children' in json && Array.isArray(json.children)) {
-      for (const child of json.children) {
-        if (child.tagName === 'mj-body') bodyJson = child
-        else if (child.tagName === 'mj-head') headJson = child
-      }
-    } else if (json.tagName === 'mj-body') {
-      bodyJson = json as MjmlJsonNode
-    } else {
-      return false
-    }
-    if (!bodyJson) return false
-    const body = mjmlJsonToTree(bodyJson)
-    if (!body || body.type !== 'mj-body' || !isContainer(body)) return false
-    const newHead = { title: '', preview: '' }
-    if (headJson?.children) {
-      for (const c of headJson.children) {
-        if (c.tagName === 'mj-title' && c.content) newHead.title = c.content
-        else if (c.tagName === 'mj-preview' && c.content) newHead.preview = c.content
-      }
-    }
-    return loadDocument({ tree: body, head: newHead })
-  }
-
-  function snapshot() {
-    history.value.push(JSON.stringify(tree.value))
-    if (history.value.length > MAX_HISTORY) history.value.shift()
-    future.value = []
-  }
-
-  function undo() {
-    const prev = history.value.pop()
-    if (!prev) return
-    future.value.push(JSON.stringify(tree.value))
-    tree.value = JSON.parse(prev)
-  }
-
-  function redo() {
-    const next = future.value.pop()
-    if (!next) return
-    history.value.push(JSON.stringify(tree.value))
-    tree.value = JSON.parse(next)
-  }
-
   function select(id: string | null) {
     selectedId.value = id
   }
 
   function canAcceptChild(parentType: MjmlNodeType, childType: MjmlNodeType): boolean {
     return VALID_PARENT[childType]?.includes(parentType) ?? false
-  }
-
-  function insertInto(parentId: string, childType: MjmlNodeType, index?: number): MjmlNode | null {
-    const hit = findNode(tree.value, parentId)
-    if (!hit || !isContainer(hit.node)) return null
-    if (!canAcceptChild(hit.node.type, childType)) return null
-    snapshot()
-    const child = createNode(childType)
-    const insertAt = index ?? hit.node.children.length
-    hit.node.children.splice(insertAt, 0, child)
-    selectedId.value = child.id
-    return child
   }
 
   function insertNode(parentId: string, node: MjmlNode, index?: number): MjmlNode | null {
@@ -271,22 +128,13 @@ export const useEditorStore = defineStore('editor', () => {
     if (selectedId.value === id) selectedId.value = parentId
   }
 
-  function moveNode(id: string, targetParentId: string, index: number) {
-    const hit = findNode(tree.value, id)
-    if (!hit || !hit.parent) return
-    const target = findNode(tree.value, targetParentId)
-    if (!target || !isContainer(target.node)) return
-    if (!canAcceptChild(target.node.type, hit.node.type)) return
-    snapshot()
-    hit.parent.children.splice(hit.index, 1)
-    const safeIndex = hit.parent === target.node && index > hit.index ? index - 1 : index
-    target.node.children.splice(safeIndex, 0, hit.node)
-  }
-
   function updateAttr(id: string, key: string, value: string) {
     const hit = findNode(tree.value, id)
     if (!hit) return
-    hit.node.attrs = { ...hit.node.attrs, [key]: value }
+    // Block javascript:-style link URLs at the source so every export stays
+    // clean (M13). Non-URL attrs pass through untouched.
+    const safe = key === 'href' ? sanitizeUrl(value) : value
+    hit.node.attrs = { ...hit.node.attrs, [key]: safe }
   }
 
   function updateContent(id: string, content: string) {
@@ -304,32 +152,18 @@ export const useEditorStore = defineStore('editor', () => {
     selected,
     selectedId,
     ancestors,
-    device,
-    mediaLibrary,
-    pickerOpen,
-    settingsOpen,
-    exportOpen,
-    viewMode,
     head,
-    sendTestUrl,
-    setMediaLibrary,
-    setSendTestUrl,
-    openPicker,
-    closePicker,
     mjmlString,
     editorMjml,
     mjmlJson,
     loadMjml,
-    loadMjmlJson,
     loadDocument,
     applyMjml,
-    canUndo: computed(() => history.value.length > 0),
-    canRedo: computed(() => future.value.length > 0),
+    canUndo,
+    canRedo,
     select,
-    insertInto,
     insertNode,
     removeNode,
-    moveNode,
     updateAttr,
     updateContent,
     beginEdit,

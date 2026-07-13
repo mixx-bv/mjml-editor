@@ -1,0 +1,64 @@
+import { defineStore } from 'pinia'
+import { ref } from 'vue'
+
+export type Device = 'desktop' | 'tablet' | 'mobile'
+export type ViewMode = 'visual' | 'source'
+
+export interface MediaAsset {
+  url: string
+  label?: string
+  thumbnail?: string
+}
+
+/**
+ * Transient editor UI state and host-provided config, kept out of the document
+ * store: viewport device, view mode, modal flags, the media library, the
+ * send-test endpoint, and the image-picker request promise.
+ */
+export const useUiStore = defineStore('ui', () => {
+  const device = ref<Device>('desktop')
+  const viewMode = ref<ViewMode>('visual')
+  const pickerOpen = ref(false)
+  const settingsOpen = ref(false)
+  const exportOpen = ref(false)
+  const mediaLibrary = ref<MediaAsset[]>([])
+  const sendTestUrl = ref<string>('/api/send-test')
+  let pickerResolve: ((url: string | null) => void) | null = null
+
+  function setMediaLibrary(assets: MediaAsset[]) {
+    mediaLibrary.value = assets
+  }
+
+  function setSendTestUrl(url: string) {
+    if (url) sendTestUrl.value = url
+  }
+
+  function openPicker(): Promise<string | null> {
+    pickerOpen.value = true
+    return new Promise((resolve) => {
+      pickerResolve = resolve
+    })
+  }
+
+  function closePicker(url: string | null) {
+    pickerOpen.value = false
+    if (pickerResolve) {
+      pickerResolve(url)
+      pickerResolve = null
+    }
+  }
+
+  return {
+    device,
+    viewMode,
+    pickerOpen,
+    settingsOpen,
+    exportOpen,
+    mediaLibrary,
+    sendTestUrl,
+    setMediaLibrary,
+    setSendTestUrl,
+    openPicker,
+    closePicker,
+  }
+})
