@@ -27,7 +27,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vue-tsc -b && vite build",
-    "build:lib": "vite build --mode lib",
+    "build:lib": "vue-tsc -b && vite build --mode lib",
     "preview": "vite preview",
     "preview:lib": "vite preview --outDir dist"
   },
@@ -43,7 +43,7 @@
     "@types/nodemailer": "^8.0.0",
     "@vitejs/plugin-vue": "^6.0.5",
     "@vue/tsconfig": "^0.9.1",
-    "nodemailer": "^8.0.7",
+    "nodemailer": "^9.0.3",
     "sass": "^1.99.0",
     "typescript": "~6.0.2",
     "vite": "^8.0.4",
