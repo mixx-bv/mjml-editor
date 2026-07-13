@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { useDnd, type DragBlock } from '../composables/useDnd'
-import { createNode, createLayoutSection } from '../utils/nodeFactory'
+import { useDnd, type DragBlock } from '../../composables/useDnd'
+import { createNode, createLayoutSection } from '../../utils/nodeFactory'
+import AppCard from '../app/AppCard.vue'
 
 const { startDrag, endDrag } = useDnd()
 
@@ -33,9 +34,11 @@ function onDragEnd() {
     <h2 class="blocks__title">Layouts</h2>
     <p class="blocks__help">Drag a layout into the canvas.</p>
     <ul class="blocks__list">
-      <li
+      <AppCard
         v-for="b in layouts"
         :key="b.id"
+        as="li"
+        hoverable
         class="blocks__item blocks__item--layout"
         draggable="true"
         @dragstart="onDragStart($event, b)"
@@ -45,27 +48,29 @@ function onDragEnd() {
           <span v-for="n in Number(b.id.split('-')[1])" :key="n" class="blocks__preview-col" />
         </div>
         <div class="blocks__item-label">{{ b.label }}</div>
-      </li>
+      </AppCard>
     </ul>
 
     <h2 class="blocks__title">Content</h2>
     <ul class="blocks__list">
-      <li
+      <AppCard
         v-for="b in contents"
         :key="b.id"
+        as="li"
+        hoverable
         class="blocks__item"
         draggable="true"
         @dragstart="onDragStart($event, b)"
         @dragend="onDragEnd"
       >
         <div class="blocks__item-label">{{ b.label }}</div>
-      </li>
+      </AppCard>
     </ul>
   </aside>
 </template>
 
 <style lang="scss" scoped>
-@use '../styles/variables' as *;
+@use '../../styles/variables' as *;
 
 .blocks {
   background: $color-panel;
@@ -102,17 +107,8 @@ function onDragEnd() {
 
   &__item {
     padding: 10px 12px;
-    border: 1px solid $color-border;
-    border-radius: $radius-md;
-    background: $color-panel;
     cursor: grab;
     user-select: none;
-    transition: border-color 0.1s, box-shadow 0.1s;
-
-    &:hover {
-      border-color: $color-accent;
-      box-shadow: $shadow-sm;
-    }
 
     &:active {
       cursor: grabbing;

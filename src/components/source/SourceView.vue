@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, watch, computed, onMounted } from 'vue'
-import mjml2html from 'mjml-browser'
-import { useEditorStore } from '../stores/editor'
+import { useEditorStore } from '../../stores/editor'
+import { compileMjml } from '../../utils/compileMjml'
 
 const store = useEditorStore()
 
@@ -46,18 +46,10 @@ function onInput() {
 let compileSeq = 0
 async function compile(mjml: string) {
   const seq = ++compileSeq
-  try {
-    const result: any = await mjml2html(mjml, { validationLevel: 'soft' })
-    if (seq !== compileSeq) return
-    compiledHtml.value = result.html || ''
-    compileError.value = result.errors?.length
-      ? result.errors.map((e: any) => e.formattedMessage).join('\n')
-      : null
-  } catch (err: any) {
-    if (seq !== compileSeq) return
-    compileError.value = err?.message || String(err)
-    compiledHtml.value = ''
-  }
+  const { html, error } = await compileMjml(mjml)
+  if (seq !== compileSeq) return
+  compiledHtml.value = html
+  compileError.value = error
 }
 
 const lineCount = computed(() => sourceText.value.split('\n').length)
@@ -100,7 +92,7 @@ const lineCount = computed(() => sourceText.value.split('\n').length)
 </template>
 
 <style lang="scss" scoped>
-@use '../styles/variables' as *;
+@use '../../styles/variables' as *;
 
 .source-view {
   display: grid;

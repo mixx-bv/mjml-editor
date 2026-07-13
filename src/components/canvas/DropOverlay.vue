@@ -1,14 +1,12 @@
 <script setup lang="ts">
 import { ref, watch, onMounted, onBeforeUnmount } from 'vue'
-import { useDnd, slotKey, type DropSlot } from '../composables/useDnd'
-import { useEditorStore } from '../stores/editor'
-import { isContainer } from '../types/mjml'
+import { useDnd, slotKey, type DropSlot } from '../../composables/useDnd'
+import { markerSelector } from '../../utils/mjedMarker'
 
 const props = defineProps<{
   iframeEl: HTMLIFrameElement | null
 }>()
 
-const store = useEditorStore()
 const { dragType, draggedBlock, validSlots, drop, endDrag } = useDnd()
 
 interface SlotRect {
@@ -23,7 +21,6 @@ interface SlotRect {
 const slotRects = ref<SlotRect[]>([])
 const activeKey = ref<string | null>(null)
 
-
 function rectsOf(els: (Element | null)[]): DOMRect[] {
   return els.filter((el): el is Element => !!el).map((el) => el.getBoundingClientRect())
 }
@@ -37,10 +34,8 @@ function recompute() {
   const results: SlotRect[] = []
 
   for (const slot of validSlots.value) {
-    const parentEl = doc.querySelector('.mjed-' + slot.parentId)
+    const parentEl = doc.querySelector(markerSelector(slot.parentId))
     if (!parentEl) continue
-    const parentNode = store.findNode(slot.parentId)?.node
-    if (!parentNode || !isContainer(parentNode)) continue
 
     const orientation = slot.parentType === 'mj-section' ? 'vertical' : 'horizontal'
 
@@ -55,7 +50,7 @@ function recompute() {
       continue
     }
 
-    const childEls = parentNode.children.map((c) => doc.querySelector('.mjed-' + c.id))
+    const childEls = slot.childIds.map((id) => doc.querySelector(markerSelector(id)))
     const childRects = rectsOf(childEls)
     if (childRects.length === 0) continue
 
@@ -105,17 +100,29 @@ function onResize() {
 }
 
 let scrollHandler: (() => void) | null = null
+let scrollRaf = 0
 
 function attachScrollHandler() {
   detachScrollHandler()
   const doc = props.iframeEl?.contentDocument
   if (!doc) return
-  scrollHandler = () => recompute()
+  // Coalesce scroll bursts to a single recompute per frame (M10).
+  scrollHandler = () => {
+    if (scrollRaf) return
+    scrollRaf = requestAnimationFrame(() => {
+      scrollRaf = 0
+      recompute()
+    })
+  }
   doc.addEventListener('scroll', scrollHandler, true)
   doc.defaultView?.addEventListener('scroll', scrollHandler, true)
 }
 
 function detachScrollHandler() {
+  if (scrollRaf) {
+    cancelAnimationFrame(scrollRaf)
+    scrollRaf = 0
+  }
   if (!scrollHandler) return
   const doc = props.iframeEl?.contentDocument
   doc?.removeEventListener('scroll', scrollHandler, true)
