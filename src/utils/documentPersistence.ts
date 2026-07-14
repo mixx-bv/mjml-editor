@@ -5,6 +5,17 @@ import { sanitizeInlineHtml } from './sanitize'
 const STORAGE_KEY = 'mjed:document'
 const STORAGE_VERSION = 1
 
+// localStorage auto-restore is a nicety for the standalone app (survive a
+// refresh), but harmful when the editor is embedded and the HOST owns the data:
+// all instances share one key, so an empty document would show another one's
+// content. A host (e.g. the Filament field) disables it via the `no-persist`
+// attribute; App.vue flips this before the store initializes.
+let persistenceEnabled = true
+
+export function setPersistenceEnabled(enabled: boolean): void {
+  persistenceEnabled = enabled
+}
+
 /**
  * Re-run the mj-text inline-HTML sanitizer over a restored tree. localStorage is
  * untrusted/tamperable, so mj-text content must pass the same boundary here that
@@ -25,6 +36,7 @@ export interface PersistedDocument {
 }
 
 export function loadPersistedDocument(): PersistedDocument | null {
+  if (!persistenceEnabled) return null
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (!raw) return null
@@ -53,6 +65,7 @@ export function loadPersistedDocument(): PersistedDocument | null {
  * Writes at most once per 300ms; quota errors are ignored.
  */
 export function persistDocument(tree: Ref<ContainerNode>, head: Ref<HeadFields>, signal: Ref<string>) {
+  if (!persistenceEnabled) return
   let timer: number | undefined
   watch(signal, () => {
     window.clearTimeout(timer)

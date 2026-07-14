@@ -1,5 +1,5 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { loadPersistedDocument } from './documentPersistence'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
+import { loadPersistedDocument, setPersistenceEnabled } from './documentPersistence'
 
 const KEY = 'mjed:document'
 
@@ -55,5 +55,28 @@ describe('loadPersistedDocument (T4 validation + S4 re-sanitize)', () => {
     const leaf = loaded!.tree.children[0]
     const content = 'content' in leaf ? (leaf.content ?? '') : ''
     expect(content).not.toContain('<script')
+  })
+})
+
+describe('persistence opt-out (H)', () => {
+  beforeEach(stubLocalStorage)
+  // Flag is module-global; restore the default so other suites stay unaffected.
+  afterEach(() => setPersistenceEnabled(true))
+
+  it('skips restore when disabled, even with a valid stored document', () => {
+    localStorage.setItem(
+      KEY,
+      JSON.stringify({
+        v: 1,
+        tree: { id: 'body-1', type: 'mj-body', attrs: {}, children: [] },
+        head: { title: '', preview: '' },
+      }),
+    )
+
+    setPersistenceEnabled(false)
+    expect(loadPersistedDocument()).toBeNull()
+
+    setPersistenceEnabled(true)
+    expect(loadPersistedDocument()).not.toBeNull()
   })
 })

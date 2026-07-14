@@ -1,35 +1,40 @@
 @use 'variables' as *;
 
-*,
-*::before,
-*::after {
-  box-sizing: border-box;
+// This stylesheet ships with the library build and loads into the HOST page's
+// document — the editor is a light-DOM custom element (no shadow root), so any
+// unscoped rule here would leak out and restyle the whole host page (e.g. a
+// Filament admin panel: every button, the body background, global box-sizing).
+// Therefore every rule MUST stay scoped to the editor root `.app`. Demo-only
+// page resets (html/body height) live in demo.scss, which the library never
+// imports.
+mjml-editor {
+  display: block;
 }
 
-html,
-body,
-#app {
-  height: 100%;
-  margin: 0;
-}
-
-body {
+.app {
   font-family: $font-ui;
   font-size: 13px;
   color: $color-text;
   background: $color-bg;
   -webkit-font-smoothing: antialiased;
-}
 
-button {
-  font-family: inherit;
-  font-size: inherit;
-  cursor: pointer;
-}
+  &,
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
 
-input,
-select,
-textarea {
-  font-family: inherit;
-  font-size: inherit;
+  button {
+    font-family: inherit;
+    font-size: inherit;
+    cursor: pointer;
+  }
+
+  input,
+  select,
+  textarea {
+    font-family: inherit;
+    font-size: inherit;
+  }
 }

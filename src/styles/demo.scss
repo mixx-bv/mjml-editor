@@ -1,0 +1,16 @@
+@use 'variables' as *;
+
+// Demo-only page resets. NOT part of the library build — the web component
+// scopes all its styling to `.app` (see main.scss) so it never restyles a host
+// page. main.ts (the demo entry) is the only importer; the demo mounts App into
+// #app directly, so it needs the page itself to be full-height.
+html,
+body,
+#app {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: $color-bg;
+}

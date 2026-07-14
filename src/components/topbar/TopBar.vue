@@ -37,7 +37,7 @@ const views: { value: ViewMode; label: string }[] = [
       <AppButton @click="ui.settingsOpen = true">Settings</AppButton>
       <AppButton @click="ui.exportOpen = true">Export</AppButton>
 
-      <SendTestPopover />
+      <SendTestPopover v-if="ui.sendTestUrl" />
 
       <AppSegmented
         :model-value="ui.viewMode"

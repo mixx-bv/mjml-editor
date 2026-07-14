@@ -2,6 +2,7 @@ import { createApp, h } from 'vue'
 import { createPinia } from 'pinia'
 import App from './App.vue'
 import './styles/main.scss'
+import './styles/demo.scss'
 
 const demoMediaLibrary = [
   { url: 'https://placehold.co/600x400/2563eb/fff?text=Hero', label: 'Hero' },

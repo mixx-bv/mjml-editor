@@ -22,7 +22,10 @@ export const useUiStore = defineStore('ui', () => {
   const settingsOpen = ref(false)
   const exportOpen = ref(false)
   const mediaLibrary = ref<MediaAsset[]>([])
-  const sendTestUrl = ref<string>('/api/send-test')
+  // Empty by default so the host opts in to the built-in test-send by passing a
+  // `send-test-url`. No url → the TopBar hides the button (a Filament host uses
+  // its own server-side test action instead).
+  const sendTestUrl = ref<string>('')
   let pickerResolve: ((url: string | null) => void) | null = null
 
   function setMediaLibrary(assets: MediaAsset[]) {

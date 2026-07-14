@@ -39,8 +39,11 @@ Of via CDN (IIFE, registreert `<mjml-editor>` automatisch):
   ]
 
   el.addEventListener('change', (e) => {
-    console.log(e.detail.mjml)  // huidige MJML-bron
-    console.log(e.detail.json)  // structureel JSON-document
+    // Vue's custom element levert de payload als eerste element van detail.
+    const payload = e.detail[0]
+    console.log(payload.mjml)  // huidige MJML-bron
+    console.log(payload.html)  // gecompileerde e-mail-HTML
+    console.log(payload.json)  // structureel JSON-document
   })
 </script>
 ```
@@ -56,7 +59,7 @@ const initial = '<mjml><mj-body><mj-section><mj-column><mj-text>Hi</mj-text></mj
 const media = [{ url: '/img/logo.png', label: 'Logo' }]
 
 function onChange(e) {
-  // e.detail.mjml, e.detail.json
+  const { mjml, html, json } = e.detail[0]  // payload zit in detail[0]
 }
 </script>
 
@@ -88,7 +91,7 @@ export function MailEditor({ mjml, media, onChange }) {
   useEffect(() => {
     if (!ref.current) return
     ref.current.mediaLibrary = media        // property, geen attribuut
-    const handler = (e) => onChange(e.detail)
+    const handler = (e) => onChange(e.detail[0])
     ref.current.addEventListener('change', handler)
     return () => ref.current?.removeEventListener('change', handler)
   }, [media, onChange])
@@ -116,7 +119,8 @@ Geen build-stap nodig — laad de IIFE direct:
 |---|---|---|---|
 | `initial-mjml` | `initialMjml` | `string` | MJML-bron waarmee de editor opstart. Wijzigingen op deze prop herladen het document. |
 | — | `mediaLibrary` | `MediaAsset[]` of JSON-string | Lijst met afbeeldingen voor de image picker. Zet als **property** (objecten kunnen niet via attribuut). |
-| `send-test-url` | `sendTestUrl` | `string` | Endpoint dat een POST `{ to, subject, html }` ontvangt voor "test versturen". |
+| `send-test-url` | `sendTestUrl` | `string` | Endpoint dat een POST `{ to, subject, html }` ontvangt voor "test versturen". Niet meegegeven → geen test-knop. |
+| `no-persist` | `noPersist` | `boolean` (presence) | Zet als **attribuut** (`<mjml-editor no-persist>`) om de localStorage-auto-restore uit te zetten. Nodig wanneer de host de data zelf beheert (bv. een Filament-veld) — anders delen meerdere editors één opslagsleutel. |
 
 ```ts
 interface MediaAsset {
@@ -130,7 +134,9 @@ interface MediaAsset {
 
 | Event | Detail | Wanneer |
 |---|---|---|
-| `change` | `{ mjml: string, json: MjmlJsonDocument }` | Telkens het document wijzigt. `mjml` is de geserialiseerde bron, `json` is een structurele weergave. |
+| `change` | `{ mjml: string, html: string, json: MjmlJsonDocument }` | Telkens het document wijzigt (gedebounced). `mjml` is de geserialiseerde bron, `html` de gecompileerde e-mail-HTML (klaar om te versturen — geen aparte MJML-compile aan host-zijde nodig), `json` een structurele weergave. |
+
+> ⚠️ Vue's custom element levert de payload als **`event.detail[0]`** (Vue stopt emit-argumenten in een array), dus lees `event.detail[0].mjml` — niet `event.detail.mjml`.
 
 ### Custom tag-naam
 

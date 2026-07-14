@@ -11,23 +11,31 @@ import ExportModal from './components/modals/ExportModal.vue'
 import { useEditorStore } from './stores/editor'
 import { useUiStore, type MediaAsset } from './stores/ui'
 import type { MjmlJsonDocument } from './utils/mjmlJson'
+import { compileMjml } from './utils/compileMjml'
+import { setPersistenceEnabled } from './utils/documentPersistence'
 
 const props = withDefaults(
   defineProps<{
     initialMjml?: string
     mediaLibrary?: MediaAsset[] | string
     sendTestUrl?: string
+    noPersist?: boolean
   }>(),
   {
     initialMjml: '',
     mediaLibrary: () => [],
     sendTestUrl: '',
+    noPersist: false,
   },
 )
 
 const emit = defineEmits<{
-  change: [payload: { mjml: string; json: MjmlJsonDocument }]
+  change: [payload: { mjml: string; html: string; json: MjmlJsonDocument }]
 }>()
+
+// Must run before useEditorStore(): the store loads persisted state at init, so
+// an embedding host that owns the data opts out (via `no-persist`) here first.
+setPersistenceEnabled(!props.noPersist)
 
 const store = useEditorStore()
 const ui = useUiStore()
@@ -73,14 +81,29 @@ watch(
 )
 
 // Debounce the host change-event so a burst of keystrokes collapses into one
-// emit (and one JSON serialization) instead of firing per character (M8).
+// emit (and one JSON serialization) instead of firing per character (M8). The
+// payload carries the compiled email `html` too, so a host (e.g. a Filament
+// field) can persist/send it without re-bundling mjml-browser itself.
 let changeTimer: number | undefined
+let changeSeq = 0
+let lastHtml = ''
 watch(
   () => store.mjmlString,
   (mjml) => {
     window.clearTimeout(changeTimer)
-    changeTimer = window.setTimeout(() => {
-      emit('change', { mjml, json: store.mjmlJson })
+    changeTimer = window.setTimeout(async () => {
+      // Snapshot json alongside mjml before the async compile so all three
+      // fields describe the same document, then guard against a slow compile
+      // landing after a newer one (same seq idiom as useMjmlCompiler.ts:11).
+      const json = store.mjmlJson
+      const mine = ++changeSeq
+      const { html } = await compileMjml(mjml)
+      if (mine !== changeSeq) return
+      // Keep the last good html when a mid-edit source is briefly uncompilable,
+      // so a transient error never clobbers a valid stored body (mirrors
+      // useMjmlCompiler.ts:19).
+      if (html) lastHtml = html
+      emit('change', { mjml, html: lastHtml, json })
     }, 250)
   },
 )
