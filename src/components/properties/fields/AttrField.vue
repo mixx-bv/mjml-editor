@@ -6,7 +6,6 @@ import { useNodeAttr, useNodeContent } from '../../../composables/useNodeAttr'
 
 const props = withDefaults(
   defineProps<{
-    nodeId: string
     attrKey?: string
     label: string
     type?: 'text' | 'color' | 'number' | 'url' | 'select'
@@ -19,9 +18,7 @@ const props = withDefaults(
 )
 
 const { value, onFocus } =
-  props.bind === 'content'
-    ? useNodeContent(() => props.nodeId)
-    : useNodeAttr(() => props.nodeId, () => props.attrKey ?? '')
+  props.bind === 'content' ? useNodeContent() : useNodeAttr(() => props.attrKey ?? '')
 
 function onColorInput(e: Event) {
   value.value = (e.target as HTMLInputElement).value

@@ -1,12 +1,21 @@
 import { watch, type Ref } from 'vue'
-import type { ContainerNode } from '../types/mjml'
+import { isContainer, type ContainerNode, type HeadFields, type MjmlNode } from '../types/mjml'
+import { sanitizeInlineHtml } from './sanitize'
 
 const STORAGE_KEY = 'mjed:document'
 const STORAGE_VERSION = 1
 
-export interface HeadFields {
-  title: string
-  preview: string
+/**
+ * Re-run the mj-text inline-HTML sanitizer over a restored tree. localStorage is
+ * untrusted/tamperable, so mj-text content must pass the same boundary here that
+ * parseMjmlString applies to imported MJML (S4). Mutates in place.
+ */
+function sanitizeRestoredTree(node: MjmlNode): void {
+  if (isContainer(node)) {
+    node.children.forEach(sanitizeRestoredTree)
+  } else if (node.type === 'mj-text' && typeof node.content === 'string') {
+    node.content = sanitizeInlineHtml(node.content)
+  }
 }
 
 export interface PersistedDocument {
@@ -20,7 +29,17 @@ export function loadPersistedDocument(): PersistedDocument | null {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (!raw) return null
     const parsed = JSON.parse(raw) as PersistedDocument
-    if (parsed.v !== STORAGE_VERSION || !parsed.tree) return null
+    // localStorage is untrusted input, so validate the shape before the cast is
+    // trusted: right version + an mj-body tree root with children (the same guard
+    // loadDocument applies to host-supplied documents) (T4).
+    if (
+      parsed?.v !== STORAGE_VERSION ||
+      parsed.tree?.type !== 'mj-body' ||
+      !Array.isArray(parsed.tree.children)
+    ) {
+      return null
+    }
+    sanitizeRestoredTree(parsed.tree)
     return parsed
   } catch {
     return null

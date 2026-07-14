@@ -1,17 +1,18 @@
-<script setup lang="ts">
+<script setup lang="ts" generic="T extends string">
 // Segmented button group bound with v-model. `variant='pill'` is the toolbar toggle
 // (grey track, active button becomes a raised pill); `variant='tabs'` is the
-// underline tab row.
+// underline tab row. Generic over the value type so call sites keep their literal
+// union (Device/ViewMode/Tab) end-to-end instead of casting the emitted value (T2).
 withDefaults(
   defineProps<{
-    modelValue: string
-    options: { value: string; label: string }[]
+    modelValue: T
+    options: { value: T; label: string }[]
     variant?: 'pill' | 'tabs'
   }>(),
   { variant: 'pill' },
 )
 
-const emit = defineEmits<{ (e: 'update:modelValue', v: string): void }>()
+const emit = defineEmits<{ (e: 'update:modelValue', v: T): void }>()
 </script>
 
 <template>

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, watch, computed, onMounted } from 'vue'
 import { useEditorStore } from '../../stores/editor'
-import { compileMjml } from '../../utils/compileMjml'
+import { useMjmlCompiler } from '../../composables/useMjmlCompiler'
 
 const store = useEditorStore()
 
@@ -11,12 +11,14 @@ const store = useEditorStore()
 const sourceText = ref('')
 const userTouched = ref(false)
 const parseError = ref<string | null>(null)
-const compileError = ref<string | null>(null)
-const compiledHtml = ref('')
+
+// Reuse the debounced, sequence-guarded compile from the visual canvas instead
+// of re-implementing it here (D1). It recompiles automatically as sourceText
+// changes, so onInput/onMounted no longer trigger a compile by hand.
+const { compiledHtml, compileError } = useMjmlCompiler(sourceText)
 
 onMounted(() => {
   sourceText.value = store.mjmlString
-  compile(sourceText.value)
 })
 
 // When the store changes externally (e.g., user switched to visual, edited,
@@ -26,7 +28,6 @@ watch(
   (s) => {
     if (!userTouched.value && s !== sourceText.value) {
       sourceText.value = s
-      compile(s)
     }
   },
 )
@@ -38,18 +39,8 @@ function onInput() {
   applyTimer = window.setTimeout(() => {
     const ok = store.applyMjml(sourceText.value)
     parseError.value = ok ? null : 'Could not parse MJML — check that <mjml> and <mj-body> exist.'
-    compile(sourceText.value)
     userTouched.value = false
   }, 400)
-}
-
-let compileSeq = 0
-async function compile(mjml: string) {
-  const seq = ++compileSeq
-  const { html, error } = await compileMjml(mjml)
-  if (seq !== compileSeq) return
-  compiledHtml.value = html
-  compileError.value = error
 }
 
 const lineCount = computed(() => sourceText.value.split('\n').length)

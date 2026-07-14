@@ -5,7 +5,7 @@ import { useUiStore } from '../../stores/ui'
 import { useDnd } from '../../composables/useDnd'
 import { useMjmlCompiler } from '../../composables/useMjmlCompiler'
 import { useCanvasBridge } from '../../composables/useCanvasBridge'
-import { BRIDGE_SRCDOC } from '../../canvas/bridgeSrcdoc'
+import { BRIDGE_SRCDOC } from '../../utils/bridgeSrcdoc'
 import DropOverlay from './DropOverlay.vue'
 
 const store = useEditorStore()
@@ -30,7 +30,9 @@ const deviceWidth = computed(() => {
   }
 })
 
-const { compiledHtml, compileError } = useMjmlCompiler(computed(() => store.editorMjml))
+// 250ms > a typical key interval, so a burst of edits in a property field
+// coalesces into one mjml2html compile instead of one per character (P1).
+const { compiledHtml, compileError } = useMjmlCompiler(computed(() => store.editorMjml), 250)
 useCanvasBridge(iframeRef, store, compiledHtml, computed(() => !!dragType.value))
 
 function onWindowDragEnd() {

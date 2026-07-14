@@ -4,7 +4,6 @@ import AppField from '../../app/AppField.vue'
 import { useNodeAttr } from '../../../composables/useNodeAttr'
 
 const props = defineProps<{
-  nodeId: string
   attrKey: string
   label: string
   units?: string[]
@@ -14,7 +13,7 @@ const props = defineProps<{
   placeholder?: string
 }>()
 
-const { value, onFocus } = useNodeAttr(() => props.nodeId, () => props.attrKey)
+const { value, onFocus } = useNodeAttr(() => props.attrKey)
 </script>
 
 <template>

@@ -1,6 +1,6 @@
-import type { ContainerNode, MjmlNode, MjmlNodeType } from '../types/mjml'
-import { CONTAINER_TYPES, isContainer, VALID_PARENT } from '../types/mjml'
-import { uid } from './nodeFactory'
+import type { ContainerNode, HeadFields, MjmlNode, MjmlNodeType } from '../types/mjml'
+import { CONTAINER_TYPES, isContainer, nonEmptyAttrs, VALID_PARENT } from '../types/mjml'
+import { ID_PREFIX, uid } from './nodeFactory'
 import { sanitizeInlineHtml } from './sanitize'
 import { parseEditorClass } from './mjedMarker'
 
@@ -21,13 +21,11 @@ export interface MjmlJsonDocument {
   children: MjmlJsonNode[]
 }
 
-export function treeToMjmlJson(node: MjmlNode): MjmlJsonNode {
+function treeToMjmlJson(node: MjmlNode): MjmlJsonNode {
   const out: MjmlJsonNode = { tagName: node.type }
   // Drop empty-string attrs so the JSON export matches the MJML export, which
-  // strips them too (serialize.ts).
-  const attrs = Object.fromEntries(
-    Object.entries(node.attrs).filter(([, v]) => v !== '' && v != null),
-  )
+  // strips them too (serialize.ts) — shared filter keeps them in lockstep.
+  const attrs = Object.fromEntries(nonEmptyAttrs(node.attrs))
   if (Object.keys(attrs).length > 0) out.attributes = attrs
   if (isContainer(node)) {
     if (node.children.length > 0) out.children = node.children.map(treeToMjmlJson)
@@ -39,7 +37,7 @@ export function treeToMjmlJson(node: MjmlNode): MjmlJsonNode {
 
 export function documentToMjmlJson(
   body: ContainerNode,
-  head: { title?: string; preview?: string },
+  head: Partial<HeadFields>,
 ): MjmlJsonDocument {
   const headChildren: MjmlJsonNode[] = []
   if (head.title?.trim()) headChildren.push({ tagName: 'mj-title', content: head.title.trim() })
@@ -55,7 +53,7 @@ const VALID_TYPES = new Set<MjmlNodeType>(Object.keys(VALID_PARENT) as MjmlNodeT
 
 export interface ParsedMjmlDocument {
   body: ContainerNode
-  head: { title: string; preview: string }
+  head: HeadFields
 }
 
 // `text/html` ignores a trailing slash on non-void elements, so `<mj-image />`
@@ -94,15 +92,6 @@ export function parseMjmlString(mjml: string): ParsedMjmlDocument | null {
   return { body, head }
 }
 
-const ID_PREFIX: Record<MjmlNodeType, string> = {
-  'mj-body': 'body',
-  'mj-section': 'sec',
-  'mj-column': 'col',
-  'mj-text': 'txt',
-  'mj-image': 'img',
-  'mj-button': 'btn',
-}
-
 // mj-text content is inline HTML and must be sanitized at the boundary (C2);
 // other leaves carry plain text that is escaped at serialize time.
 function leafContent(type: MjmlNodeType, raw: string): string {
@@ -130,20 +119,10 @@ function elementToInternal(el: Element): MjmlNode | null {
     }
     return { ...base, children } as ContainerNode
   }
-  return { ...base, content: leafContent(type, el.innerHTML.trim()) } as MjmlNode
-}
-
-export function mjmlJsonToTree(input: MjmlJsonNode): MjmlNode | null {
-  if (!input || typeof input.tagName !== 'string') return null
-  const type = input.tagName as MjmlNodeType
-  if (!VALID_TYPES.has(type)) return null
-
-  const base = { id: uid(ID_PREFIX[type]), type, attrs: { ...(input.attributes || {}) } }
-  if (CONTAINER_TYPES.includes(type)) {
-    const children = (input.children || [])
-      .map(mjmlJsonToTree)
-      .filter((n): n is MjmlNode => n !== null)
-    return { ...base, children } as ContainerNode
-  }
-  return { ...base, content: leafContent(type, input.content ?? '') } as MjmlNode
+  // mj-text keeps its inline HTML (sanitized in leafContent); every other leaf is
+  // a plain-text label, so read the *decoded* text (textContent). serialize.ts
+  // re-escapes `&`/`<`/`>` on export, making this the exact inverse — without it,
+  // innerHTML re-encodes `&`→`&amp;` and each round-trip stacks another `amp;` (M1).
+  const raw = type === 'mj-text' ? el.innerHTML.trim() : (el.textContent ?? '').trim()
+  return { ...base, content: leafContent(type, raw) } as MjmlNode
 }

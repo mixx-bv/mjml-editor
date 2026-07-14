@@ -1,4 +1,4 @@
-import { isContainer, type MjmlNode } from '../types/mjml'
+import { isContainer, nonEmptyAttrs, type HeadFields, type MjmlNode } from '../types/mjml'
 import { editorClass } from './mjedMarker'
 
 const escapeAttr = (v: string) => v.replace(/"/g, '&quot;')
@@ -11,9 +11,7 @@ function serializeAttrs(
   type: string,
   includeEditorIds: boolean,
 ): string {
-  const pairs = Object.entries(attrs)
-    .filter(([, v]) => v !== '' && v != null)
-    .map(([k, v]) => `${k}="${escapeAttr(v)}"`)
+  const pairs = nonEmptyAttrs(attrs).map(([k, v]) => `${k}="${escapeAttr(v)}"`)
   if (includeEditorIds) pairs.push(`css-class="${editorClass(id, type)}"`)
   return pairs.length ? ' ' + pairs.join(' ') : ''
 }
@@ -30,11 +28,6 @@ export function serializeNode(node: MjmlNode, includeEditorIds: boolean): string
   const raw = node.content ?? ''
   const content = node.type === 'mj-button' ? escapeText(raw) : raw
   return `<${node.type}${attrStr}>${content}</${node.type}>`
-}
-
-export interface HeadFields {
-  title?: string
-  preview?: string
 }
 
 export function serializeTree(

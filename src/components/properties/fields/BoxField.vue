@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
 import NumberUnit from './NumberUnit.vue'
+import AppField from '../../app/AppField.vue'
 import { useNodeAttr } from '../../../composables/useNodeAttr'
 
 const props = withDefaults(
   defineProps<{
-    nodeId: string
     attrKey: string
     label: string
     units?: string[]
@@ -13,7 +13,7 @@ const props = withDefaults(
   { units: () => ['px', '%'] },
 )
 
-const { value: rawValue, onFocus } = useNodeAttr(() => props.nodeId, () => props.attrKey)
+const { value: rawValue, onFocus } = useNodeAttr(() => props.attrKey)
 
 const linked = ref(true)
 
@@ -79,19 +79,21 @@ function toggleLink() {
 </script>
 
 <template>
-  <div class="box">
-    <div class="box__header">
-      <span class="box__label">{{ label }}</span>
-      <button
-        type="button"
-        class="box__link"
-        :class="{ 'is-active': linked }"
-        :title="linked ? 'Sides linked' : 'Sides independent'"
-        @click="toggleLink"
-      >
-        {{ linked ? '⤴ linked' : '↔ free' }}
-      </button>
-    </div>
+  <AppField class="box">
+    <template #label>
+      <span class="box__header">
+        {{ label }}
+        <button
+          type="button"
+          class="box__link"
+          :class="{ 'is-active': linked }"
+          :title="linked ? 'Sides linked' : 'Sides independent'"
+          @click="toggleLink"
+        >
+          {{ linked ? '⤴ linked' : '↔ free' }}
+        </button>
+      </span>
+    </template>
 
     <div v-if="linked" class="box__single">
       <NumberUnit
@@ -140,26 +142,17 @@ function toggleLink() {
         />
       </label>
     </div>
-  </div>
+  </AppField>
 </template>
 
 <style lang="scss" scoped>
 @use '../../../styles/variables' as *;
-@use '../../../styles/mixins' as *;
 
 .box {
-  display: grid;
-  gap: 6px;
-  margin-bottom: 12px;
-
   &__header {
     display: flex;
     align-items: center;
     justify-content: space-between;
-  }
-
-  &__label {
-    @include field-label;
   }
 
   &__link {

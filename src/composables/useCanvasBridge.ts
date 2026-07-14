@@ -1,9 +1,14 @@
 import { onMounted, onBeforeUnmount, ref, watch, type Ref } from 'vue'
 import { editorClass } from '../utils/mjedMarker'
 import { sanitizeInlineHtml, flattenParagraphs, stripDangerousHtml } from '../utils/sanitize'
+import { MJED, type BridgeInbound, type BridgeOutbound } from '../types/bridge'
 import type { useEditorStore } from '../stores/editor'
 
 type EditorStore = ReturnType<typeof useEditorStore>
+
+// The srcdoc iframe runs allow-same-origin, so it shares the host page's origin;
+// target that instead of the '*' wildcard when handing document HTML across (S2).
+const IFRAME_ORIGIN = window.location.origin
 
 /**
  * Parent side of the preview-iframe message protocol: hands compiled HTML into
@@ -32,27 +37,27 @@ export function useCanvasBridge(
     return { styles, bodyHTML: doc.body.innerHTML, bodyClass }
   }
 
-  function postToIframe(msg: unknown) {
-    iframeRef.value?.contentWindow?.postMessage(msg, '*')
+  function postToIframe(msg: BridgeOutbound) {
+    iframeRef.value?.contentWindow?.postMessage(msg, IFRAME_ORIGIN)
   }
 
   function render() {
     if (!iframeReady.value || !compiledHtml.value) return
-    postToIframe({ type: 'mjed:render', ...extractRender(compiledHtml.value) })
-    postToIframe({ type: 'mjed:highlight', id: store.selectedId })
+    postToIframe({ type: MJED.render, ...extractRender(compiledHtml.value) })
+    postToIframe({ type: MJED.highlight, id: store.selectedId })
   }
 
   function onMessage(e: MessageEvent) {
     // Only trust messages from our own preview iframe (M12).
     if (e.source !== iframeRef.value?.contentWindow) return
-    const data = e.data
+    const data = e.data as BridgeInbound | undefined
     if (!data) return
-    if (data.type === 'mjed:ready') {
+    if (data.type === MJED.ready) {
       iframeReady.value = true
       render()
-    } else if (data.type === 'mjed:select') {
+    } else if (data.type === MJED.select) {
       store.select(data.id)
-    } else if (data.type === 'mjed:text-edit') {
+    } else if (data.type === MJED.textEdit) {
       store.beginEdit()
       store.updateContent(data.id, sanitizeInlineHtml(flattenParagraphs(data.content)))
     }
@@ -64,9 +69,9 @@ export function useCanvasBridge(
   watch(compiledHtml, render)
   watch(
     () => store.selectedId,
-    (id) => postToIframe({ type: 'mjed:highlight', id }),
+    (id) => postToIframe({ type: MJED.highlight, id }),
   )
-  watch(dragActive, (active) => postToIframe({ type: 'mjed:drag-state', dragging: active }))
+  watch(dragActive, (active) => postToIframe({ type: MJED.dragState, dragging: active }))
 
   return { iframeReady }
 }

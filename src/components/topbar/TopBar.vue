@@ -28,7 +28,7 @@ const views: { value: ViewMode; label: string }[] = [
       class="topbar__devices"
       :model-value="ui.device"
       :options="devices"
-      @update:model-value="(v) => (ui.device = v as Device)"
+      @update:model-value="(v) => (ui.device = v)"
     />
 
     <div class="topbar__actions">
@@ -42,7 +42,7 @@ const views: { value: ViewMode; label: string }[] = [
       <AppSegmented
         :model-value="ui.viewMode"
         :options="views"
-        @update:model-value="(v) => (ui.viewMode = v as ViewMode)"
+        @update:model-value="(v) => (ui.viewMode = v)"
       />
     </div>
   </header>

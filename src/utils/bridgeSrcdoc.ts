@@ -1,15 +1,26 @@
-import { flattenParagraphs } from '../utils/sanitize'
+import { flattenParagraphs } from './sanitize'
+import quillJs from 'quill/dist/quill.js?raw'
+import quillCss from 'quill/dist/quill.bubble.css?raw'
 
 // The sandboxed preview iframe's document. It can't import modules, so its
-// runtime is inlined here as a string. flattenParagraphs is injected from the
-// single source (self-contained, uses only DOM globals) instead of being
-// hand-mirrored (M6).
+// runtime — Quill included — is inlined here as a string. Quill is bundled from
+// the installed package rather than fetched from a CDN, so the privileged
+// same-origin iframe never executes third-party code pulled at runtime, and
+// inline text-editing keeps working under a strict host CSP / offline (M2).
+// flattenParagraphs is injected from its single source (self-contained, uses only
+// DOM globals) instead of a hand-mirrored copy (M6).
+//
+// Defensive escape: stop an inlined asset from closing its host <script>/<style>
+// early should a future Quill build ever contain a literal closing sequence.
+const inlineQuillJs = quillJs.replace(/<\/script/gi, '<\\/script')
+const inlineQuillCss = quillCss.replace(/<\/style/gi, '<\\/style')
+
 export const BRIDGE_SRCDOC = `<!doctype html>
 <html>
 <head>
 <meta charset="utf-8" />
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.bubble.css" />
-<script src="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.js"><\/script>
+<style id="mjed-quill-css">${inlineQuillCss}</style>
+<script>${inlineQuillJs}<\/script>
 <style id="mjed-overlay-css">
   body { cursor: default; margin: 0; }
 
@@ -134,6 +145,9 @@ export const BRIDGE_SRCDOC = `<!doctype html>
 <body></body>
 <script>
 (function () {
+  // allow-same-origin keeps this srcdoc on the host page's origin, so target it
+  // explicitly instead of the '*' wildcard when posting back to the parent (S2).
+  var PARENT_ORIGIN = window.location.origin;
   var selectedId = null;
   var editing = null;
   var lastHover = null;
@@ -197,7 +211,7 @@ export const BRIDGE_SRCDOC = `<!doctype html>
       if (parentInfo && parentInfo.id !== info.id) targetId = parentInfo.id;
     }
     if (editing) exitEdit(true);
-    parent.postMessage({ type: 'mjed:select', id: targetId }, '*');
+    parent.postMessage({ type: 'mjed:select', id: targetId }, PARENT_ORIGIN);
   }, true);
 
   function enterEdit(host, id) {
@@ -244,7 +258,7 @@ export const BRIDGE_SRCDOC = `<!doctype html>
     info.wrap.innerHTML = (commit && !unchanged) ? html : info.originalHTML;
     document.body.classList.remove('mjed-editing');
     if (commit && !unchanged) {
-      parent.postMessage({ type: 'mjed:text-edit', id: info.id, content: html }, '*');
+      parent.postMessage({ type: 'mjed:text-edit', id: info.id, content: html }, PARENT_ORIGIN);
     }
   }
 
@@ -284,7 +298,7 @@ export const BRIDGE_SRCDOC = `<!doctype html>
     }
   });
 
-  parent.postMessage({ type: 'mjed:ready' }, '*');
+  parent.postMessage({ type: 'mjed:ready' }, PARENT_ORIGIN);
 })();
 <\/script>
 </html>`

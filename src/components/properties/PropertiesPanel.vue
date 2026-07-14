@@ -78,12 +78,12 @@ function onDelete() {
         </AppButton>
       </div>
 
-      <BodyProps v-if="store.selected.type === 'mj-body'" :node-id="store.selected.id" />
-      <SectionProps v-else-if="store.selected.type === 'mj-section'" :node-id="store.selected.id" />
-      <ColumnProps v-else-if="store.selected.type === 'mj-column'" :node-id="store.selected.id" />
-      <TextProps v-else-if="store.selected.type === 'mj-text'" :node-id="store.selected.id" />
-      <ImageProps v-else-if="store.selected.type === 'mj-image'" :node-id="store.selected.id" />
-      <ButtonProps v-else-if="store.selected.type === 'mj-button'" :node-id="store.selected.id" />
+      <BodyProps v-if="store.selected.type === 'mj-body'" />
+      <SectionProps v-else-if="store.selected.type === 'mj-section'" />
+      <ColumnProps v-else-if="store.selected.type === 'mj-column'" />
+      <TextProps v-else-if="store.selected.type === 'mj-text'" />
+      <ImageProps v-else-if="store.selected.type === 'mj-image'" />
+      <ButtonProps v-else-if="store.selected.type === 'mj-button'" />
     </template>
   </aside>
 </template>

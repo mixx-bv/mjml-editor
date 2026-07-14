@@ -40,26 +40,37 @@ function isScriptUrl(value: string): boolean {
 const DANGEROUS_TAGS = new Set([
   'SCRIPT', 'IFRAME', 'OBJECT', 'EMBED', 'BASE', 'META', 'LINK', 'FORM', 'NOSCRIPT',
 ])
-const URL_ATTRS = new Set([
-  'href', 'src', 'srcset', 'background', 'action', 'formaction', 'poster', 'xlink:href',
-])
+// Navigational URLs go through the strict allowlist (also blocks `data:` and
+// `vbscript:`); media URLs keep `data:` so inline data:-image sources survive but
+// still drop script schemes (S1).
+const NAV_URL_ATTRS = new Set(['href', 'action', 'formaction', 'xlink:href'])
+const MEDIA_URL_ATTRS = new Set(['src', 'srcset', 'background', 'poster'])
 
 /**
  * In-place hardening for compiled email HTML before it's assigned via innerHTML
  * in the preview iframe. Strips script-capable tags, inline event handlers, and
- * `javascript:`/`vbscript:` URLs, while preserving table layout, styling,
- * `data:` images, and the mjed-* selection classes.
+ * dangerous URL schemes, while preserving table layout, styling, `data:` images,
+ * and the mjed-* selection classes. Deliberately NOT a tag allowlist: the input
+ * is full mjml2html output including Outlook VML fallbacks, which a drop-unknown
+ * allowlist would destroy.
  */
 export function stripDangerousHtml(root: ParentNode): void {
   for (const el of Array.from(root.querySelectorAll('*'))) {
-    if (DANGEROUS_TAGS.has(el.tagName)) {
+    // Foreign-content tags (SVG/MathML) keep their original lowercase name, so an
+    // <svg><script> would slip past the uppercase set — compare upper-cased (S1).
+    if (DANGEROUS_TAGS.has(el.tagName.toUpperCase())) {
       el.remove()
       continue
     }
     for (const attr of Array.from(el.attributes)) {
       const name = attr.name.toLowerCase()
-      if (name.startsWith('on')) el.removeAttribute(attr.name)
-      else if (URL_ATTRS.has(name) && isScriptUrl(attr.value)) el.removeAttribute(attr.name)
+      if (name.startsWith('on')) {
+        el.removeAttribute(attr.name)
+      } else if (NAV_URL_ATTRS.has(name)) {
+        if (attr.value && !sanitizeUrl(attr.value)) el.removeAttribute(attr.name)
+      } else if (MEDIA_URL_ATTRS.has(name) && isScriptUrl(attr.value)) {
+        el.removeAttribute(attr.name)
+      }
     }
   }
 }
@@ -139,6 +150,12 @@ const EMPTY: Set<string> = new Set()
 /**
  * Convert <p>…</p> blocks to <br>-joined inline content. Preserves <ul>/<ol>
  * and other block siblings. An empty paragraph becomes an extra <br>.
+ *
+ * ⚠️ MUST STAY SELF-CONTAINED — DO NOT add imports, module-scope constants, or
+ * helper calls here. This function is stringified via `.toString()` and injected
+ * verbatim into the sandboxed preview iframe (utils/bridgeSrcdoc.ts), which has no
+ * module system. It may reference only DOM globals; anything else silently breaks
+ * inline text-editing at runtime (A3/T7).
  */
 export function flattenParagraphs(html: string): string {
   const tmpl = document.createElement('template')

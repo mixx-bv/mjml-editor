@@ -5,6 +5,9 @@ import { compileMjml } from '../utils/compileMjml'
 
 const STORAGE_KEY_EMAIL = 'mjed:test-email'
 
+// Pragmatic client-side check; the host endpoint remains the authority.
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
 export type SendStatus = 'idle' | 'sending' | 'sent' | 'error'
 
 /**
@@ -21,24 +24,30 @@ export function useSendTest() {
   const sendError = ref('')
 
   async function sendTest(): Promise<boolean> {
-    if (!testEmail.value || sendStatus.value === 'sending') return false
+    if (sendStatus.value === 'sending') return false
+    const to = testEmail.value.trim()
+    if (!EMAIL_RE.test(to)) {
+      sendStatus.value = 'error'
+      sendError.value = 'Enter a valid email address.'
+      return false
+    }
     sendStatus.value = 'sending'
     sendError.value = ''
     try {
       const { html, error } = await compileMjml(store.mjmlString)
       if (!html) throw new Error(error || 'MJML compiled to empty HTML')
+      // Collapse CR/LF so the title can't smuggle extra headers if the host builds
+      // the message from these fields (defense in depth — the endpoint must
+      // sanitize headers too) (S3).
+      const subject = (store.head.title || 'Test email').replace(/[\r\n]+/g, ' ').trim()
       const response = await fetch(ui.sendTestUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          to: testEmail.value,
-          subject: store.head.title || 'Test email',
-          html,
-        }),
+        body: JSON.stringify({ to, subject, html }),
       })
       const data = await response.json().catch(() => ({}))
       if (!response.ok) throw new Error(data?.error || `HTTP ${response.status}`)
-      localStorage.setItem(STORAGE_KEY_EMAIL, testEmail.value)
+      localStorage.setItem(STORAGE_KEY_EMAIL, to)
       sendStatus.value = 'sent'
       return true
     } catch (err) {

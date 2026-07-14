@@ -2,7 +2,6 @@
 import { ref, computed, watch } from 'vue'
 import { useEditorStore } from '../../stores/editor'
 import { compileMjml } from '../../utils/compileMjml'
-import { documentToMjmlJson } from '../../utils/mjmlJson'
 import AppModal from '../app/AppModal.vue'
 import AppSegmented from '../app/AppSegmented.vue'
 import AppButton from '../app/AppButton.vue'
@@ -29,9 +28,7 @@ const copied = ref(false)
 
 const mjmlString = computed(() => store.mjmlString)
 
-const jsonString = computed(() =>
-  JSON.stringify(documentToMjmlJson(store.tree, store.head), null, 2),
-)
+const jsonString = computed(() => JSON.stringify(store.mjmlJson, null, 2))
 
 const htmlString = ref('')
 const compileError = ref<string | null>(null)
@@ -91,7 +88,7 @@ function onDownload() {
       variant="tabs"
       :model-value="tab"
       :options="tabs"
-      @update:model-value="(v) => (tab = v as Tab)"
+      @update:model-value="(v) => (tab = v)"
     />
 
     <AppBanner v-if="tab === 'html' && compileError" class="export-modal__error">

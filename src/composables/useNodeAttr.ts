@@ -2,29 +2,30 @@ import { computed, toValue, type MaybeRefOrGetter } from 'vue'
 import { useEditorStore } from '../stores/editor'
 
 /**
- * Two-way binding to an attribute of the selected node. The properties panel
- * only mounts fields for `store.selected`, so the getter reads that already-
- * resolved node — one cached tree-walk shared by every field — instead of
- * re-finding the node per field on each keystroke (M5 + M7).
+ * Two-way binding to an attribute of the selected node. The properties panel only
+ * mounts fields for `store.selected`, so both sides target that node: the getter
+ * reads the already-resolved `store.selected` (one cached tree-walk shared by
+ * every field, M5 + M7) and the setter routes through `updateSelectedAttr`, so
+ * read and write stay symmetric without a nodeId argument (A1).
  */
-export function useNodeAttr(nodeId: MaybeRefOrGetter<string>, attrKey: MaybeRefOrGetter<string>) {
+export function useNodeAttr(attrKey: MaybeRefOrGetter<string>) {
   const store = useEditorStore()
   const value = computed<string>({
     get: () => store.selected?.attrs[toValue(attrKey)] ?? '',
-    set: (v) => store.updateAttr(toValue(nodeId), toValue(attrKey), v),
+    set: (v) => store.updateSelectedAttr(toValue(attrKey), v),
   })
   return { value, onFocus: () => store.beginEdit() }
 }
 
-/** Like {@link useNodeAttr} but bound to a leaf node's text content. */
-export function useNodeContent(nodeId: MaybeRefOrGetter<string>) {
+/** Like {@link useNodeAttr} but bound to the selected leaf node's text content. */
+export function useNodeContent() {
   const store = useEditorStore()
   const value = computed<string>({
     get: () => {
       const n = store.selected
       return (n && 'content' in n ? n.content : '') ?? ''
     },
-    set: (v) => store.updateContent(toValue(nodeId), v),
+    set: (v) => store.updateSelectedContent(v),
   })
   return { value, onFocus: () => store.beginEdit() }
 }

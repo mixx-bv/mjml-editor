@@ -34,6 +34,9 @@ export const useUiStore = defineStore('ui', () => {
   }
 
   function openPicker(): Promise<string | null> {
+    // If a picker request is still pending, settle it with null before replacing
+    // its resolver — otherwise that first `await openPicker()` hangs forever (R1).
+    if (pickerResolve) pickerResolve(null)
     pickerOpen.value = true
     return new Promise((resolve) => {
       pickerResolve = resolve

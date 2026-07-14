@@ -2,13 +2,12 @@
 import AttrField from '../fields/AttrField.vue'
 import NumberUnitField from '../fields/NumberUnitField.vue'
 
-defineProps<{ nodeId: string }>()
 </script>
 
 <template>
   <div>
-    <AttrField :node-id="nodeId" attr-key="background-color" label="Background color" type="color" />
-    <NumberUnitField :node-id="nodeId" attr-key="width" label="Email width" :units="['px']" />
-    <AttrField :node-id="nodeId" attr-key="lang" label="Language code" placeholder="en" />
+    <AttrField attr-key="background-color" label="Background color" type="color" />
+    <NumberUnitField attr-key="width" label="Email width" :units="['px']" />
+    <AttrField attr-key="lang" label="Language code" placeholder="en" />
   </div>
 </template>

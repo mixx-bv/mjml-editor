@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
-import type { ContainerNode, MjmlNode, MjmlNodeType } from '../types/mjml'
+import type { ContainerNode, HeadFields, MjmlNode, MjmlNodeType } from '../types/mjml'
 import { isContainer, VALID_PARENT } from '../types/mjml'
 import { createInitialTree } from '../utils/nodeFactory'
 import { serializeTree } from '../utils/serialize'
@@ -71,7 +71,7 @@ export const useEditorStore = defineStore('editor', () => {
   // Persist off the serialized signal (defined above), not a deep tree watch (M9).
   persistDocument(tree, head, mjmlString)
 
-  function loadDocument(doc: { tree: ContainerNode; head?: { title?: string; preview?: string } }): boolean {
+  function loadDocument(doc: { tree: ContainerNode; head?: Partial<HeadFields> }): boolean {
     if (!doc.tree || doc.tree.type !== 'mj-body') return false
     tree.value = doc.tree
     head.value = {
@@ -143,6 +143,17 @@ export const useEditorStore = defineStore('editor', () => {
     hit.node.content = content
   }
 
+  // The properties panel always edits the current selection, so these wrappers let
+  // the field composables bind to it symmetrically (read + write both go through
+  // the selected node) instead of taking a nodeId that must equal selectedId (A1).
+  function updateSelectedAttr(key: string, value: string) {
+    if (selectedId.value) updateAttr(selectedId.value, key, value)
+  }
+
+  function updateSelectedContent(content: string) {
+    if (selectedId.value) updateContent(selectedId.value, content)
+  }
+
   function beginEdit() {
     snapshot()
   }
@@ -166,10 +177,10 @@ export const useEditorStore = defineStore('editor', () => {
     removeNode,
     updateAttr,
     updateContent,
+    updateSelectedAttr,
+    updateSelectedContent,
     beginEdit,
     undo,
     redo,
-    findNode: (id: string) => findNode(tree.value, id),
-    canAcceptChild,
   }
 })
