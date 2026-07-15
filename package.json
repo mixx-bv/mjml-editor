@@ -28,7 +28,7 @@
     "dev": "vite",
     "build": "vue-tsc -b && vite build",
     "build:lib": "vue-tsc -b && vite build --mode lib",
-    "build:plugin": "npm run build:lib && cp dist/mjml-editor.iife.js dist/mjml-editor.css ../filament-mjml-editor/resources/dist/",
+    "build:plugin": "npm run build:lib && cp dist/mjml-editor.iife.js dist/mjml-editor.css ../eventsight-filament/www/packages/filament-mjml-editor/resources/dist/",
     "preview": "vite preview",
     "preview:lib": "vite preview --outDir dist",
     "test": "vitest run",

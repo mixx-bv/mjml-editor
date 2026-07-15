@@ -51,14 +51,18 @@ describe('Twig round-trip — safe cases (the common EventSight usage)', () => {
   })
 })
 
-describe('Twig round-trip — KNOWN LIMITATION (see ticket: Twig comparison operators)', () => {
+// CHARACTERIZATION TEST — pins CURRENT, UNDESIRED behaviour so a fix is noticed,
+// NOT a specification of what should happen. Tracked as a separate ticket
+// ("Twig comparison operators survive the round-trip"); do not treat the encoding
+// below as correct.
+describe('Twig round-trip — characterization of a KNOWN LIMITATION (undesired; see ticket)', () => {
   // Comparison operators `<` / `>` inside a text leaf are HTML-entity-encoded on
   // parse (mj-text via innerHTML) or on serialize (escapeText for button/title),
   // producing `&gt;` / `&lt;` — which Twig does NOT decode, so the tag breaks.
   // `{{ }}` interpolation is unaffected; this bites only inline `{% if a > b %}`.
   // Mitigation today: EventSight's ValidTwig rule catches a broken body server-side,
   // and the VariablePicker inserts `{{ }}` (operator-free). Documented, not fixed here.
-  it('entity-encodes `>` in an inline comparison inside mj-text', () => {
+  it('entity-encodes `>` in an inline comparison inside mj-text (current behaviour, not desired)', () => {
     const out = roundtrip(wrap('<mj-text>{% if order.count > 5 %}veel{% endif %}</mj-text>'))
     expect(out).toContain('&gt;')
     expect(out).not.toContain('> 5 %}')
