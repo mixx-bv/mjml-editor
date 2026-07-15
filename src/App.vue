@@ -11,8 +11,8 @@ import ExportModal from './components/modals/ExportModal.vue'
 import { useEditorStore } from './stores/editor'
 import { useUiStore, type MediaAsset } from './stores/ui'
 import type { MjmlJsonDocument } from './utils/mjmlJson'
-import { useDocumentCompiler } from './composables/useDocumentCompiler'
-import { nextHostChange } from './utils/hostChange'
+import { compileMjml } from './utils/compileMjml'
+import { shouldEmitChange } from './utils/hostChange'
 import { setPersistenceEnabled } from './utils/documentPersistence'
 
 const props = withDefaults(
@@ -92,20 +92,33 @@ watch(
   { immediate: true },
 )
 
-// One shared, debounced compile feeds both the canvas preview and this emit, so
-// a visual edit runs mjml2html once instead of twice (review P2). The payload
-// carries the compiled email `html` too, so a host (e.g. a Filament field) can
-// persist/send it without re-bundling mjml-browser itself.
-const { snapshot } = useDocumentCompiler(store)
-const compiledHtml = computed(() => snapshot.value?.editorHtml ?? '')
-const compileError = computed(() => snapshot.value?.error ?? null)
-
-watch(snapshot, (doc) => {
-  const change = nextHostChange(doc, lastSyncedMjml)
-  if (!change) return
-  lastSyncedMjml = change.mjml
-  emit('change', change)
-})
+// Debounce the host change-event so a burst of keystrokes collapses into one
+// emit (and one JSON serialization) instead of firing per character (M8). The
+// payload carries the compiled email `html` too, so a host (e.g. a Filament
+// field) can persist/send it without re-bundling mjml-browser itself.
+let changeTimer: number | undefined
+let changeSeq = 0
+watch(
+  () => store.mjmlString,
+  (mjml) => {
+    window.clearTimeout(changeTimer)
+    changeTimer = window.setTimeout(async () => {
+      // Snapshot json alongside mjml before the async compile so all three
+      // fields describe the same document, then guard against a slow compile
+      // landing after a newer one (same seq idiom as useMjmlCompiler.ts:11).
+      const json = store.mjmlJson
+      const mine = ++changeSeq
+      const { html } = await compileMjml(mjml)
+      if (mine !== changeSeq) return
+      // Skip when there is nothing new for the host: a transient uncompilable
+      // source (L1) or a document the host already holds — the latter stops
+      // merely opening a template from writing its re-serialized body back (M1).
+      if (!shouldEmitChange(mjml, html, lastSyncedMjml)) return
+      lastSyncedMjml = mjml
+      emit('change', { mjml, html, json })
+    }, 250)
+  },
+)
 </script>
 
 <template>
@@ -114,7 +127,7 @@ watch(snapshot, (doc) => {
     <div class="app__body" :class="`app__body--${ui.viewMode}`">
       <template v-if="ui.viewMode === 'visual'">
         <BlocksPanel />
-        <EditorCanvas :compiled-html="compiledHtml" :compile-error="compileError" />
+        <EditorCanvas />
         <PropertiesPanel />
       </template>
       <SourceView v-else />

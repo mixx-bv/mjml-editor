@@ -1,37 +1,17 @@
 import { describe, it, expect } from 'vitest'
-import { nextHostChange, type DocumentSnapshot } from './hostChange'
-import type { MjmlJsonDocument } from './mjmlJson'
+import { shouldEmitChange } from './hostChange'
 
-const json = { tagName: 'mjml', children: [] } as unknown as MjmlJsonDocument
-
-const snapshot = (over: Partial<DocumentSnapshot> = {}): DocumentSnapshot => ({
-  mjml: '<mjml>edited</mjml>',
-  json,
-  editorHtml: '<div class="mjed-x">e</div>',
-  emailHtml: '<div>e</div>',
-  error: null,
-  ...over,
-})
-
-describe('nextHostChange', () => {
-  it('returns null when there is no snapshot yet', () => {
-    expect(nextHostChange(null, '<mjml>anything</mjml>')).toBeNull()
+describe('shouldEmitChange', () => {
+  it('does not emit a transient uncompilable source (empty html) — keeps the host triple (L1)', () => {
+    expect(shouldEmitChange('<mjml>edited</mjml>', '', '<mjml>old</mjml>')).toBe(false)
   })
 
-  it('returns null for a transient uncompilable source (empty emailHtml) — keeps the host triple (L1)', () => {
-    expect(nextHostChange(snapshot({ emailHtml: '' }), '<mjml>old</mjml>')).toBeNull()
-  })
-
-  it('returns null when the document equals what the host already holds (M1 — no write-on-load)', () => {
+  it('does not emit a document the host already holds — no write-on-load (M1)', () => {
     const loaded = '<mjml>edited</mjml>'
-    expect(nextHostChange(snapshot({ mjml: loaded }), loaded)).toBeNull()
+    expect(shouldEmitChange(loaded, '<html>x</html>', loaded)).toBe(false)
   })
 
-  it('emits the {mjml, html, json} triple when the document actually changed', () => {
-    expect(nextHostChange(snapshot(), '<mjml>previous</mjml>')).toEqual({
-      mjml: '<mjml>edited</mjml>',
-      html: '<div>e</div>',
-      json,
-    })
+  it('emits when the document actually changed and compiled', () => {
+    expect(shouldEmitChange('<mjml>new</mjml>', '<html>x</html>', '<mjml>old</mjml>')).toBe(true)
   })
 })

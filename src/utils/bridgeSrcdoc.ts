@@ -147,7 +147,11 @@ export const BRIDGE_SRCDOC = `<!doctype html>
 (function () {
   // allow-same-origin keeps this srcdoc on the host page's origin, so target it
   // explicitly instead of the '*' wildcard when posting back to the parent (S2).
-  var PARENT_ORIGIN = window.location.origin;
+  // Use window.origin, NOT location.origin: for an about:srcdoc document the
+  // latter serializes to the string "null", which postMessage rejects as an
+  // invalid target origin — breaking the whole ready/render handshake. window.origin
+  // returns the inherited host origin the same-origin sandbox actually runs on.
+  var PARENT_ORIGIN = window.origin;
   var selectedId = null;
   var editing = null;
   var lastHover = null;

@@ -1,19 +1,12 @@
 <script setup lang="ts">
-import { computed, ref, toRef, onMounted, onBeforeUnmount } from 'vue'
+import { computed, ref, onMounted, onBeforeUnmount } from 'vue'
 import { useEditorStore } from '../../stores/editor'
 import { useUiStore } from '../../stores/ui'
 import { useDnd } from '../../composables/useDnd'
+import { useMjmlCompiler } from '../../composables/useMjmlCompiler'
 import { useCanvasBridge } from '../../composables/useCanvasBridge'
 import { BRIDGE_SRCDOC } from '../../utils/bridgeSrcdoc'
 import DropOverlay from './DropOverlay.vue'
-
-// The compiled HTML comes from App's single shared compiler (review P2) rather
-// than a canvas-local one, so the preview and the host change-emit never compile
-// the same source twice.
-const props = defineProps<{
-  compiledHtml: string
-  compileError: string | null
-}>()
 
 const store = useEditorStore()
 const ui = useUiStore()
@@ -37,7 +30,9 @@ const deviceWidth = computed(() => {
   }
 })
 
-const compiledHtml = toRef(props, 'compiledHtml')
+// 250ms > a typical key interval, so a burst of edits in a property field
+// coalesces into one mjml2html compile instead of one per character (P1).
+const { compiledHtml, compileError } = useMjmlCompiler(computed(() => store.editorMjml), 250)
 useCanvasBridge(iframeRef, store, compiledHtml, computed(() => !!dragType.value))
 
 function onWindowDragEnd() {
