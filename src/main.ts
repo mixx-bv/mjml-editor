@@ -13,10 +13,19 @@ const demoMediaLibrary = [
   { url: 'https://placehold.co/600x400/0ea5e9/fff?text=Announcement', label: 'Announcement' },
 ]
 
+const demoVariables = [
+  { label: 'First name', value: '{{ attendee.first_name }}' },
+  { label: 'Last name', value: '{{ attendee.last_name }}' },
+  { label: 'Event name', value: '{{ event.name }}' },
+  { label: 'Event date', value: '{{ event.starts_at }}' },
+  { label: 'Ticket URL', value: '{{ order.ticket_url }}' },
+]
+
 createApp({
   render: () =>
     h(App, {
       mediaLibrary: demoMediaLibrary,
+      variables: demoVariables,
       sendTestUrl: '/api/send-test',
     }),
 })

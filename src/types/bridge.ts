@@ -9,9 +9,11 @@ export const MJED = {
   ready: 'mjed:ready',
   select: 'mjed:select',
   textEdit: 'mjed:text-edit',
+  editState: 'mjed:edit-state',
   highlight: 'mjed:highlight',
   dragState: 'mjed:drag-state',
   render: 'mjed:render',
+  insertVariable: 'mjed:insert-variable',
 } as const
 
 /** Messages the iframe sends up to the parent. */
@@ -19,9 +21,14 @@ export type BridgeInbound =
   | { type: typeof MJED.ready }
   | { type: typeof MJED.select; id: string }
   | { type: typeof MJED.textEdit; id: string; content: string }
+  // Inline rich-text editing started/stopped — lets the parent offer variable
+  // insertion into the live editor only while it is open.
+  | { type: typeof MJED.editState; editing: boolean; id: string | null }
 
 /** Messages the parent posts down into the iframe. */
 export type BridgeOutbound =
   | { type: typeof MJED.highlight; id: string | null }
   | { type: typeof MJED.dragState; dragging: boolean }
   | { type: typeof MJED.render; styles: string; bodyHTML: string; bodyClass: string }
+  // Insert a personalization token at the inline editor's saved caret.
+  | { type: typeof MJED.insertVariable; token: string }

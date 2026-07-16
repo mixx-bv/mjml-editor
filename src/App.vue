@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import TopBar from './components/topbar/TopBar.vue'
 import BlocksPanel from './components/blocks/BlocksPanel.vue'
 import EditorCanvas from './components/canvas/EditorCanvas.vue'
@@ -9,22 +9,25 @@ import SourceView from './components/source/SourceView.vue'
 import EmailSettings from './components/modals/EmailSettings.vue'
 import ExportModal from './components/modals/ExportModal.vue'
 import { useEditorStore } from './stores/editor'
-import { useUiStore, type MediaAsset } from './stores/ui'
+import { useUiStore, type MediaAsset, type VariableItem } from './stores/ui'
 import type { MjmlJsonDocument } from './utils/mjmlJson'
 import { compileMjml } from './utils/compileMjml'
 import { shouldEmitChange } from './utils/hostChange'
 import { setPersistenceEnabled } from './utils/documentPersistence'
+import { createShortcutHandler } from './composables/useKeyboardShortcuts'
 
 const props = withDefaults(
   defineProps<{
     initialMjml?: string
     mediaLibrary?: MediaAsset[] | string
+    variables?: VariableItem[] | string
     sendTestUrl?: string
     noPersist?: boolean
   }>(),
   {
     initialMjml: '',
     mediaLibrary: () => [],
+    variables: () => [],
     sendTestUrl: '',
     noPersist: false,
   },
@@ -41,14 +44,23 @@ setPersistenceEnabled(!props.noPersist)
 const store = useEditorStore()
 const ui = useUiStore()
 
+// Shortcuts bound to the editor root (not window) so keystrokes elsewhere on the
+// host page are never hijacked. The canvas iframe binds the same handler itself
+// (EditorCanvas), covering the case where a canvas click has focused the iframe.
+const rootRef = ref<HTMLElement | null>(null)
+const onShortcut = createShortcutHandler()
+onMounted(() => rootRef.value?.addEventListener('keydown', onShortcut))
+onBeforeUnmount(() => rootRef.value?.removeEventListener('keydown', onShortcut))
+
 // What the host already holds. Seeded with the initial (empty) template and
 // updated on every host load / emit below, so a document identical to the host's
 // is never echoed back — this is what stops merely opening a template (which
 // re-serializes every locale body) from rewriting each one (review M1).
 let lastSyncedMjml = store.mjmlString
 
-const parsedMediaLibrary = computed<MediaAsset[]>(() => {
-  const raw = props.mediaLibrary
+// Complex props arrive as objects (Vue property) or JSON strings (HTML attribute).
+// Normalise both to an array; malformed JSON degrades to empty rather than throwing.
+function parseArrayProp<T>(raw: T[] | string): T[] {
   if (typeof raw === 'string') {
     if (!raw.trim()) return []
     try {
@@ -59,15 +71,13 @@ const parsedMediaLibrary = computed<MediaAsset[]>(() => {
     }
   }
   return raw ?? []
-})
+}
 
-watch(
-  parsedMediaLibrary,
-  (assets) => {
-    ui.setMediaLibrary(assets)
-  },
-  { immediate: true },
-)
+const parsedMediaLibrary = computed<MediaAsset[]>(() => parseArrayProp(props.mediaLibrary))
+const parsedVariables = computed<VariableItem[]>(() => parseArrayProp(props.variables))
+
+watch(parsedMediaLibrary, (assets) => ui.setMediaLibrary(assets), { immediate: true })
+watch(parsedVariables, (items) => ui.setVariables(items), { immediate: true })
 
 watch(
   () => props.sendTestUrl,
@@ -122,7 +132,7 @@ watch(
 </script>
 
 <template>
-  <div class="app">
+  <div class="app" ref="rootRef">
     <TopBar />
     <div class="app__body" :class="`app__body--${ui.viewMode}`">
       <template v-if="ui.viewMode === 'visual'">

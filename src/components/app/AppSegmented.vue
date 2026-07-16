@@ -20,6 +20,7 @@ const emit = defineEmits<{ (e: 'update:modelValue', v: T): void }>()
     <button
       v-for="o in options"
       :key="o.value"
+      type="button"
       class="app-seg__btn"
       :class="{ 'is-active': modelValue === o.value }"
       @click="emit('update:modelValue', o.value)"

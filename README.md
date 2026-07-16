@@ -119,6 +119,7 @@ Geen build-stap nodig — laad de IIFE direct:
 |---|---|---|---|
 | `initial-mjml` | `initialMjml` | `string` | MJML-bron waarmee de editor opstart. Wijzigingen op deze prop herladen het document. |
 | — | `mediaLibrary` | `MediaAsset[]` of JSON-string | Lijst met afbeeldingen voor de image picker. Zet als **property** (objecten kunnen niet via attribuut). |
+| — | `variables` | `VariableItem[]` of JSON-string | Personalisatie-tokens (bv. Twig merge-velden) die de gebruiker kan invoegen in tekst, links, onderwerp en preheader. Zet als **property**. Leeg → geen variabelen-UI. |
 | `send-test-url` | `sendTestUrl` | `string` | Endpoint dat een POST `{ to, subject, html }` ontvangt voor "test versturen". Niet meegegeven → geen test-knop. |
 | `no-persist` | `noPersist` | `boolean` (presence) | Zet als **attribuut** (`<mjml-editor no-persist>`) om de localStorage-auto-restore uit te zetten. Nodig wanneer de host de data zelf beheert (bv. een Filament-veld) — anders delen meerdere editors één opslagsleutel. |
 
@@ -127,6 +128,11 @@ interface MediaAsset {
   url: string
   label?: string
   thumbnail?: string
+}
+
+interface VariableItem {
+  label: string // vriendelijke naam in de picker (bv. "Voornaam")
+  value: string // volledig token dat letterlijk wordt ingevoegd (bv. "{{ attendee.first_name }}")
 }
 ```
 

@@ -5,6 +5,8 @@ export type MjmlNodeType =
   | 'mj-text'
   | 'mj-image'
   | 'mj-button'
+  | 'mj-divider'
+  | 'mj-spacer'
 
 export type Attrs = Record<string, string>
 
@@ -20,7 +22,7 @@ export interface ContainerNode extends BaseNode {
 }
 
 export interface LeafNode extends BaseNode {
-  type: 'mj-text' | 'mj-image' | 'mj-button'
+  type: 'mj-text' | 'mj-image' | 'mj-button' | 'mj-divider' | 'mj-spacer'
   content?: string
 }
 
@@ -56,4 +58,6 @@ export const VALID_PARENT: Record<MjmlNodeType, MjmlNodeType[]> = {
   'mj-text': ['mj-column'],
   'mj-image': ['mj-column'],
   'mj-button': ['mj-column'],
+  'mj-divider': ['mj-column'],
+  'mj-spacer': ['mj-column'],
 }

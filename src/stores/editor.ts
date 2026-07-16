@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import type { ContainerNode, HeadFields, MjmlNode, MjmlNodeType } from '../types/mjml'
 import { isContainer, VALID_PARENT } from '../types/mjml'
-import { createInitialTree } from '../utils/nodeFactory'
+import { cloneNode, createInitialTree } from '../utils/nodeFactory'
 import { serializeTree } from '../utils/serialize'
 import { sanitizeUrl } from '../utils/sanitize'
 import { documentToMjmlJson, parseMjmlString } from '../utils/mjmlJson'
@@ -128,6 +128,40 @@ export const useEditorStore = defineStore('editor', () => {
     if (selectedId.value === id) selectedId.value = parentId
   }
 
+  // Insert a deep copy (fresh ids) right after the original, mirroring
+  // insertNode's snapshot/selection handling. mj-body has no parent → no-op.
+  function duplicateNode(id: string): MjmlNode | null {
+    const hit = findNode(tree.value, id)
+    if (!hit || !hit.parent) return null
+    snapshot()
+    const copy = cloneNode(hit.node)
+    hit.parent.children.splice(hit.index + 1, 0, copy)
+    selectedId.value = copy.id
+    return copy
+  }
+
+  // Reorder a node among its siblings. Cross-parent moves are out of scope here;
+  // an out-of-range target (already first/last) is a no-op that doesn't snapshot,
+  // so undo history stays clean.
+  function moveNode(id: string, direction: 'up' | 'down') {
+    const hit = findNode(tree.value, id)
+    if (!hit || !hit.parent) return
+    const siblings = hit.parent.children
+    const target = direction === 'up' ? hit.index - 1 : hit.index + 1
+    if (target < 0 || target >= siblings.length) return
+    snapshot()
+    const [node] = siblings.splice(hit.index, 1)
+    siblings.splice(target, 0, node)
+  }
+
+  // Position of a node among its siblings, for enabling/disabling move controls.
+  // Null when the node has no parent (mj-body) or isn't found.
+  function siblingInfo(id: string): { index: number; count: number } | null {
+    const hit = findNode(tree.value, id)
+    if (!hit || !hit.parent) return null
+    return { index: hit.index, count: hit.parent.children.length }
+  }
+
   function updateAttr(id: string, key: string, value: string) {
     const hit = findNode(tree.value, id)
     if (!hit) return
@@ -175,6 +209,9 @@ export const useEditorStore = defineStore('editor', () => {
     select,
     insertNode,
     removeNode,
+    duplicateNode,
+    moveNode,
+    siblingInfo,
     updateAttr,
     updateContent,
     updateSelectedAttr,

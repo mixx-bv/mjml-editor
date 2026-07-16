@@ -22,7 +22,7 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onKeydown))
     <div class="modal__panel" :style="{ width: `min(${width}, 100%)` }">
       <header class="modal__header">
         <h2 class="modal__title">{{ title }}</h2>
-        <button class="modal__close" @click="emit('close')" aria-label="Close">×</button>
+        <button type="button" class="modal__close" @click="emit('close')" aria-label="Close">×</button>
       </header>
       <slot />
     </div>

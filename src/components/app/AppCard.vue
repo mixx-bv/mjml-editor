@@ -9,7 +9,7 @@ withDefaults(
 </script>
 
 <template>
-  <component :is="as" class="app-card" :class="{ 'app-card--hoverable': hoverable }">
+  <component :is="as" :type="as === 'button' ? 'button' : undefined" class="app-card" :class="{ 'app-card--hoverable': hoverable }">
     <slot />
   </component>
 </template>

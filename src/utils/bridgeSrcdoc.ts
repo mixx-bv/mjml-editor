@@ -242,8 +242,12 @@ export const BRIDGE_SRCDOC = `<!doctype html>
     });
     quill.focus();
     quill.setSelection(0, quill.getLength());
-    editing = { host: host, wrap: wrap, id: id, quill: quill, originalHTML: originalHTML };
+    editing = { host: host, wrap: wrap, id: id, quill: quill, originalHTML: originalHTML, range: quill.getSelection() };
+    // Remember the caret so a variable picked from the parent panel (which blurs
+    // this editor) still inserts at the right spot.
+    quill.on('selection-change', function (range) { if (editing && range) editing.range = range; });
     document.addEventListener('keydown', onEditKey, true);
+    parent.postMessage({ type: 'mjed:edit-state', editing: true, id: id }, PARENT_ORIGIN);
   }
 
   function exitEdit(commit) {
@@ -261,6 +265,7 @@ export const BRIDGE_SRCDOC = `<!doctype html>
     var unchanged = commit && html === info.originalHTML;
     info.wrap.innerHTML = (commit && !unchanged) ? html : info.originalHTML;
     document.body.classList.remove('mjed-editing');
+    parent.postMessage({ type: 'mjed:edit-state', editing: false, id: null }, PARENT_ORIGIN);
     if (commit && !unchanged) {
       parent.postMessage({ type: 'mjed:text-edit', id: info.id, content: html }, PARENT_ORIGIN);
     }
@@ -290,6 +295,18 @@ export const BRIDGE_SRCDOC = `<!doctype html>
         if (editing) exitEdit(false);
       } else {
         document.body.classList.remove('mjed-dragging');
+      }
+    } else if (data.type === 'mjed:insert-variable') {
+      if (editing && typeof data.token === 'string') {
+        var q = editing.quill;
+        var r = (editing.range && editing.range.index != null) ? editing.range : { index: q.getLength(), length: 0 };
+        // Insert at the END of any selection (never delete) so a variable picked
+        // while text is selected — the state right after entering edit — appends
+        // instead of wiping the content.
+        var at = r.index + (r.length || 0);
+        q.insertText(at, data.token, 'user');
+        q.setSelection(at + data.token.length, 0, 'user');
+        editing.range = { index: at + data.token.length, length: 0 };
       }
     } else if (data.type === 'mjed:render') {
       if (editing) exitEdit(false);

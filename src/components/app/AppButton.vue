@@ -11,7 +11,7 @@ withDefaults(
 </script>
 
 <template>
-  <button class="app-btn" :class="[`app-btn--${variant}`, `app-btn--${size}`]">
+  <button type="button" class="app-btn" :class="[`app-btn--${variant}`, `app-btn--${size}`]">
     <slot />
   </button>
 </template>

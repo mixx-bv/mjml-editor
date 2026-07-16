@@ -1,12 +1,14 @@
 <script setup lang="ts">
-import { computed, ref, onMounted, onBeforeUnmount } from 'vue'
+import { computed, ref, watch, onMounted, onBeforeUnmount } from 'vue'
 import { useEditorStore } from '../../stores/editor'
 import { useUiStore } from '../../stores/ui'
 import { useDnd } from '../../composables/useDnd'
 import { useMjmlCompiler } from '../../composables/useMjmlCompiler'
 import { useCanvasBridge } from '../../composables/useCanvasBridge'
+import { createShortcutHandler } from '../../composables/useKeyboardShortcuts'
 import { BRIDGE_SRCDOC } from '../../utils/bridgeSrcdoc'
 import DropOverlay from './DropOverlay.vue'
+import SelectionToolbar from './SelectionToolbar.vue'
 
 const store = useEditorStore()
 const ui = useUiStore()
@@ -39,13 +41,25 @@ const deviceWidth = computed(() => {
 // 250ms > a typical key interval, so a burst of edits in a property field
 // coalesces into one mjml2html compile instead of one per character (P1).
 const { compiledHtml, compileError } = useMjmlCompiler(computed(() => store.editorMjml), 250)
-useCanvasBridge(iframeRef, store, compiledHtml, computed(() => !!dragType.value))
+const { iframeReady } = useCanvasBridge(iframeRef, store, compiledHtml, computed(() => !!dragType.value))
+
+// A canvas click focuses the same-origin iframe, so keyboard shortcuts (delete,
+// duplicate, undo) fire inside it — bind the shared handler to its document. The
+// contentDocument survives re-renders (only body innerHTML is swapped), so one
+// listen at ready-time is enough.
+const onShortcut = createShortcutHandler()
+watch(iframeReady, (ready) => {
+  if (ready) iframeRef.value?.contentDocument?.addEventListener('keydown', onShortcut)
+})
 
 function onWindowDragEnd() {
   endDrag()
 }
 onMounted(() => window.addEventListener('dragend', onWindowDragEnd))
-onBeforeUnmount(() => window.removeEventListener('dragend', onWindowDragEnd))
+onBeforeUnmount(() => {
+  window.removeEventListener('dragend', onWindowDragEnd)
+  iframeRef.value?.contentDocument?.removeEventListener('keydown', onShortcut)
+})
 
 function onCanvasClick() {
   store.select(null)
@@ -66,6 +80,7 @@ function onCanvasClick() {
         sandbox="allow-scripts allow-same-origin"
       />
       <DropOverlay :iframe-el="iframeRef" />
+      <SelectionToolbar :iframe-el="iframeRef" />
     </div>
     <div v-if="dragType" class="canvas__drag-hint">
       Dragging <strong>{{ dragType.replace('mj-', '') }}</strong> — drop on a highlighted line

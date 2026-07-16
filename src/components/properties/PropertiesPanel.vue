@@ -1,47 +1,22 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useEditorStore } from '../../stores/editor'
-import { isContainer } from '../../types/mjml'
+import { useNodeActions } from '../../composables/useNodeActions'
+import { NODE_LABELS } from '../../utils/nodeLabels'
 import BodyProps from './editors/BodyProps.vue'
 import ColumnProps from './editors/ColumnProps.vue'
 import SectionProps from './editors/SectionProps.vue'
 import TextProps from './editors/TextProps.vue'
 import ImageProps from './editors/ImageProps.vue'
 import ButtonProps from './editors/ButtonProps.vue'
+import DividerProps from './editors/DividerProps.vue'
+import SpacerProps from './editors/SpacerProps.vue'
 import AppButton from '../app/AppButton.vue'
 
 const store = useEditorStore()
+const { canMoveUp, canMoveDown, deleteLabel, duplicate, moveUp, moveDown, remove } = useNodeActions()
 
-const LABELS: Record<string, string> = {
-  'mj-body': 'Body',
-  'mj-section': 'Section',
-  'mj-column': 'Column',
-  'mj-text': 'Text',
-  'mj-image': 'Image',
-  'mj-button': 'Button',
-}
-
-const typeLabel = computed(() => LABELS[store.selected?.type || ''] || '')
-
-const deleteLabel = computed(() => {
-  const sel = store.selected
-  if (!sel) return 'Delete'
-  const count = isContainer(sel) ? sel.children.length : 0
-  if (!count) return `Delete ${typeLabel.value}`
-  return `Delete ${typeLabel.value} (${count} ${count === 1 ? 'item' : 'items'})`
-})
-
-function onDelete() {
-  const sel = store.selected
-  if (!sel) return
-  if (isContainer(sel) && sel.children.length > 0) {
-    const ok = window.confirm(
-      `${deleteLabel.value}?\n\nThis will also remove everything inside.`,
-    )
-    if (!ok) return
-  }
-  store.removeNode(sel.id)
-}
+const typeLabel = computed(() => (store.selected ? NODE_LABELS[store.selected.type] : ''))
 </script>
 
 <template>
@@ -56,11 +31,12 @@ function onDelete() {
       <nav v-if="store.ancestors.length > 1" class="props__crumbs" aria-label="Selection path">
         <template v-for="(node, i) in store.ancestors" :key="node.id">
           <button
+            type="button"
             class="props__crumb"
             :class="{ 'is-current': node.id === store.selectedId }"
             @click="store.select(node.id)"
           >
-            {{ LABELS[node.type] || node.type }}
+            {{ NODE_LABELS[node.type] || node.type }}
           </button>
           <span v-if="i < store.ancestors.length - 1" class="props__crumb-sep">›</span>
         </template>
@@ -68,14 +44,12 @@ function onDelete() {
 
       <div class="props__header">
         <span class="props__type">{{ typeLabel }}</span>
-        <AppButton
-          v-if="store.selected.type !== 'mj-body'"
-          variant="danger"
-          size="sm"
-          @click="onDelete"
-        >
-          {{ deleteLabel }}
-        </AppButton>
+        <div v-if="store.selected.type !== 'mj-body'" class="props__actions">
+          <AppButton size="sm" title="Move up" :disabled="!canMoveUp" @click="moveUp">↑</AppButton>
+          <AppButton size="sm" title="Move down" :disabled="!canMoveDown" @click="moveDown">↓</AppButton>
+          <AppButton size="sm" title="Duplicate" @click="duplicate">⧉</AppButton>
+          <AppButton variant="danger" size="sm" @click="remove">{{ deleteLabel }}</AppButton>
+        </div>
       </div>
 
       <BodyProps v-if="store.selected.type === 'mj-body'" />
@@ -84,6 +58,8 @@ function onDelete() {
       <TextProps v-else-if="store.selected.type === 'mj-text'" />
       <ImageProps v-else-if="store.selected.type === 'mj-image'" />
       <ButtonProps v-else-if="store.selected.type === 'mj-button'" />
+      <DividerProps v-else-if="store.selected.type === 'mj-divider'" />
+      <SpacerProps v-else-if="store.selected.type === 'mj-spacer'" />
     </template>
   </aside>
 </template>
@@ -122,6 +98,11 @@ function onDelete() {
 
   &__type {
     font-weight: 600;
+  }
+
+  &__actions {
+    display: flex;
+    gap: 4px;
   }
 
   &__crumbs {

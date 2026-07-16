@@ -15,6 +15,8 @@ const contents: DragBlock[] = [
   { id: 'text', label: 'Text', nodeType: 'mj-text', create: () => createNode('mj-text') },
   { id: 'image', label: 'Image', nodeType: 'mj-image', create: () => createNode('mj-image') },
   { id: 'button', label: 'Button', nodeType: 'mj-button', create: () => createNode('mj-button') },
+  { id: 'divider', label: 'Divider', nodeType: 'mj-divider', create: () => createNode('mj-divider') },
+  { id: 'spacer', label: 'Spacer', nodeType: 'mj-spacer', create: () => createNode('mj-spacer') },
 ]
 
 function onDragStart(e: DragEvent, block: DragBlock) {

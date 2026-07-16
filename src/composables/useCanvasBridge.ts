@@ -2,6 +2,7 @@ import { onMounted, onBeforeUnmount, ref, watch, type Ref } from 'vue'
 import { editorClass } from '../utils/mjedMarker'
 import { sanitizeInlineHtml, flattenParagraphs, stripDangerousHtml } from '../utils/sanitize'
 import { MJED, type BridgeInbound, type BridgeOutbound } from '../types/bridge'
+import { useUiStore } from '../stores/ui'
 import type { useEditorStore } from '../stores/editor'
 
 type EditorStore = ReturnType<typeof useEditorStore>
@@ -23,6 +24,7 @@ export function useCanvasBridge(
   dragActive: Ref<boolean>,
 ) {
   const iframeReady = ref(false)
+  const ui = useUiStore()
 
   function extractRender(html: string): { styles: string; bodyHTML: string; bodyClass: string } {
     const parser = new DOMParser()
@@ -60,11 +62,21 @@ export function useCanvasBridge(
     } else if (data.type === MJED.textEdit) {
       store.beginEdit()
       store.updateContent(data.id, sanitizeInlineHtml(flattenParagraphs(data.content)))
+    } else if (data.type === MJED.editState) {
+      ui.setEditingNode(data.editing ? data.id : null)
     }
   }
 
-  onMounted(() => window.addEventListener('message', onMessage))
-  onBeforeUnmount(() => window.removeEventListener('message', onMessage))
+  onMounted(() => {
+    window.addEventListener('message', onMessage)
+    // Route panel-initiated variable inserts down into the live inline editor.
+    ui.onInsertVariable((token) => postToIframe({ type: MJED.insertVariable, token }))
+  })
+  onBeforeUnmount(() => {
+    window.removeEventListener('message', onMessage)
+    ui.onInsertVariable(null)
+    ui.setEditingNode(null)
+  })
 
   watch(compiledHtml, render)
   watch(
