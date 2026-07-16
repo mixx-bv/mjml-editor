@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useDnd, type DragBlock } from '../../composables/useDnd'
-import { createNode, createLayoutSection } from '../../utils/nodeFactory'
+import { createNode, createLayoutSection, createWrapper, createGroup } from '../../utils/nodeFactory'
 import AppCard from '../app/AppCard.vue'
 
 const { startDrag, endDrag } = useDnd()
@@ -11,12 +11,20 @@ const layouts: DragBlock[] = [
   { id: 'layout-3', label: '3 columns', nodeType: 'mj-section', create: () => createLayoutSection(3) },
 ]
 
+// A wrapper groups sections in one bordered/background block. It carries no
+// column preview, so it renders as a plain block rather than a layout card.
+const structures: DragBlock[] = [
+  { id: 'wrapper', label: 'Wrapper', nodeType: 'mj-wrapper', create: () => createWrapper() },
+  { id: 'group', label: 'Group', nodeType: 'mj-group', create: () => createGroup() },
+]
+
 const contents: DragBlock[] = [
   { id: 'text', label: 'Text', nodeType: 'mj-text', create: () => createNode('mj-text') },
   { id: 'image', label: 'Image', nodeType: 'mj-image', create: () => createNode('mj-image') },
   { id: 'button', label: 'Button', nodeType: 'mj-button', create: () => createNode('mj-button') },
   { id: 'divider', label: 'Divider', nodeType: 'mj-divider', create: () => createNode('mj-divider') },
   { id: 'spacer', label: 'Spacer', nodeType: 'mj-spacer', create: () => createNode('mj-spacer') },
+  { id: 'raw', label: 'Raw HTML', nodeType: 'mj-raw', create: () => createNode('mj-raw') },
 ]
 
 function onDragStart(e: DragEvent, block: DragBlock) {
@@ -49,6 +57,22 @@ function onDragEnd() {
         <div class="blocks__item-preview" :class="`blocks__item-preview--${b.id}`">
           <span v-for="n in Number(b.id.split('-')[1])" :key="n" class="blocks__preview-col" />
         </div>
+        <div class="blocks__item-label">{{ b.label }}</div>
+      </AppCard>
+    </ul>
+
+    <h2 class="blocks__title">Structure</h2>
+    <ul class="blocks__list">
+      <AppCard
+        v-for="b in structures"
+        :key="b.id"
+        as="li"
+        hoverable
+        class="blocks__item"
+        draggable="true"
+        @dragstart="onDragStart($event, b)"
+        @dragend="onDragEnd"
+      >
         <div class="blocks__item-label">{{ b.label }}</div>
       </AppCard>
     </ul>

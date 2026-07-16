@@ -64,6 +64,37 @@ function close() {
           <VariableMenu :variables="ui.variables" @insert="insertPreview" />
         </div>
       </AppField>
+
+      <h3 class="settings__heading">Global styles <em>(mj-attributes — defaults for every block)</em></h3>
+
+      <AppField variant="plain">
+        <template #label>Font family</template>
+        <AppInput
+          v-model="store.head.attributes['font-family']"
+          type="text"
+          placeholder="e.g. Arial, Helvetica, sans-serif"
+        />
+      </AppField>
+
+      <AppField variant="plain">
+        <template #label>Base font size</template>
+        <AppInput v-model="store.head.attributes['font-size']" type="text" placeholder="e.g. 14px" />
+      </AppField>
+
+      <AppField variant="plain">
+        <template #label>Line height</template>
+        <AppInput v-model="store.head.attributes['line-height']" type="text" placeholder="e.g. 1.5" />
+      </AppField>
+
+      <AppField variant="plain">
+        <template #label>Text color</template>
+        <AppInput v-model="store.head.attributes['color']" type="text" placeholder="#333333" />
+      </AppField>
+
+      <AppField variant="plain">
+        <template #label>Custom CSS <em>(mj-style — advanced)</em></template>
+        <AppTextarea v-model="store.head.styles" :rows="4" placeholder=".my-class { color: #333; }" />
+      </AppField>
     </div>
 
     <footer class="settings__footer">
@@ -81,6 +112,19 @@ function close() {
     display: grid;
     gap: 14px;
     overflow-y: auto;
+  }
+
+  &__heading {
+    margin: 6px 0 -2px;
+    font-size: 12px;
+    font-weight: 600;
+    color: $color-text;
+
+    em {
+      font-weight: 400;
+      font-style: normal;
+      color: $color-muted;
+    }
   }
 
   &__row {

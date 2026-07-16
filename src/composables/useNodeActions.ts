@@ -1,7 +1,7 @@
 import { computed } from 'vue'
 import { useEditorStore } from '../stores/editor'
 import { isContainer } from '../types/mjml'
-import { NODE_LABELS } from '../utils/nodeLabels'
+import { nodeLabel } from '../utils/nodeLabels'
 
 /**
  * Node actions for the current selection — duplicate, move up/down, delete (with
@@ -27,7 +27,7 @@ export function useNodeActions() {
   const deleteLabel = computed(() => {
     const sel = store.selected
     if (!sel) return 'Delete'
-    const label = NODE_LABELS[sel.type] || sel.type
+    const label = nodeLabel(sel)
     const count = isContainer(sel) ? sel.children.length : 0
     if (!count) return `Delete ${label}`
     return `Delete ${label} (${count} ${count === 1 ? 'item' : 'items'})`

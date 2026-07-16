@@ -1,4 +1,4 @@
-import type { ContainerNode, HeadFields, MjmlNode, MjmlNodeType } from '../types/mjml'
+import type { ContainerNode, HeadFields, MjmlNode, MjmlNodeType, PassthroughNode } from '../types/mjml'
 import { CONTAINER_TYPES, isContainer, nonEmptyAttrs, VALID_PARENT } from '../types/mjml'
 import { ID_PREFIX, uid } from './nodeFactory'
 import { sanitizeInlineHtml } from './sanitize'
@@ -22,6 +22,9 @@ export interface MjmlJsonDocument {
 }
 
 function treeToMjmlJson(node: MjmlNode): MjmlJsonNode {
+  // Preserved unknown elements carry raw HTML, not a modelled attr/child shape;
+  // the JSON export just names the tag (the mjml/html exports keep it verbatim).
+  if (node.type === 'passthrough') return { tagName: node.tag }
   const out: MjmlJsonNode = { tagName: node.type }
   // Drop empty-string attrs so the JSON export matches the MJML export, which
   // strips them too (serialize.ts) — shared filter keeps them in lockstep.
@@ -76,13 +79,48 @@ export function parseMjmlString(mjml: string): ParsedMjmlDocument | null {
   const root = doc.querySelector('mjml')
   if (!root) return null
 
-  const head = { title: '', preview: '' }
+  const head: HeadFields = { title: '', preview: '', attributes: {}, attributesRaw: '', styles: '', rawExtra: '' }
   const mjHead = root.querySelector('mj-head')
   if (mjHead) {
     const title = mjHead.querySelector('mj-title')
     if (title?.textContent) head.title = title.textContent.trim()
     const preview = mjHead.querySelector('mj-preview')
     if (preview?.textContent) head.preview = preview.textContent.trim()
+
+    // Lift the first mj-attributes: mj-all defaults become structured; its other
+    // children (per-component defaults) are kept verbatim to re-nest on export.
+    const mjAttributes = mjHead.querySelector('mj-attributes')
+    const mjAll = mjAttributes?.querySelector('mj-all') ?? null
+    if (mjAll) {
+      for (const attr of Array.from(mjAll.attributes)) {
+        head.attributes[attr.name] = attr.value
+      }
+    }
+    if (mjAttributes) {
+      head.attributesRaw = Array.from(mjAttributes.children)
+        .filter((c) => c.tagName.toLowerCase() !== 'mj-all')
+        .map((c) => c.outerHTML)
+        .join('')
+    }
+
+    // Lift the first attribute-less mj-style's CSS into the structured field. An
+    // mj-style carrying attributes (e.g. inline="inline", which changes whether
+    // MJML inlines the CSS) stays verbatim so its behaviour is never altered.
+    const mjStyle = mjHead.querySelector('mj-style')
+    const liftStyle = !!mjStyle && mjStyle.attributes.length === 0
+    if (liftStyle && mjStyle) head.styles = mjStyle.textContent ?? ''
+
+    // Everything not lifted above stays verbatim (mj-font, mj-breakpoint, any
+    // extra mj-attributes/mj-style blocks) so nothing is dropped.
+    head.rawExtra = Array.from(mjHead.children)
+      .filter((c) => {
+        const tag = c.tagName.toLowerCase()
+        if (tag === 'mj-title' || tag === 'mj-preview') return false
+        if (c === mjAttributes) return false
+        return !(liftStyle && c === mjStyle)
+      })
+      .map((c) => c.outerHTML)
+      .join('\n')
   }
 
   const mjBody = root.querySelector('mj-body')
@@ -98,9 +136,21 @@ function leafContent(type: MjmlNodeType, raw: string): string {
   return type === 'mj-text' ? sanitizeInlineHtml(raw) : raw
 }
 
+function passthroughFrom(el: Element): PassthroughNode {
+  return {
+    id: uid('raw'),
+    type: 'passthrough',
+    tag: el.tagName.toLowerCase(),
+    raw: el.outerHTML,
+  }
+}
+
 function elementToInternal(el: Element): MjmlNode | null {
   const type = el.tagName.toLowerCase() as MjmlNodeType
-  if (!VALID_TYPES.has(type)) return null
+  // Preserve — don't drop — any element the editor has no first-class node for
+  // (mj-wrapper, mj-raw, mj-social, …); it round-trips verbatim and still
+  // renders via mjml-browser. Its whole subtree stays inside the raw blob.
+  if (!VALID_TYPES.has(type)) return passthroughFrom(el)
   const attrs: Record<string, string> = {}
   let preservedId: string | undefined
   for (const attr of Array.from(el.attributes)) {
@@ -119,10 +169,11 @@ function elementToInternal(el: Element): MjmlNode | null {
     }
     return { ...base, children } as ContainerNode
   }
-  // mj-text keeps its inline HTML (sanitized in leafContent); every other leaf is
-  // a plain-text label, so read the *decoded* text (textContent). serialize.ts
-  // re-escapes `&`/`<`/`>` on export, making this the exact inverse — without it,
-  // innerHTML re-encodes `&`→`&amp;` and each round-trip stacks another `amp;` (M1).
-  const raw = type === 'mj-text' ? el.innerHTML.trim() : (el.textContent ?? '').trim()
+  // mj-text and mj-raw keep their inline HTML verbatim (mj-text is sanitized in
+  // leafContent, mj-raw is intentionally raw). Every other leaf is a plain-text
+  // label, so read the *decoded* text (textContent): serialize.ts re-escapes
+  // `&`/`<`/`>` on export, making this the exact inverse — without it, innerHTML
+  // re-encodes `&`→`&amp;` and each round-trip stacks another `amp;` (M1).
+  const raw = type === 'mj-text' || type === 'mj-raw' ? el.innerHTML.trim() : (el.textContent ?? '').trim()
   return { ...base, content: leafContent(type, raw) } as MjmlNode
 }

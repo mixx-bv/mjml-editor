@@ -1,6 +1,6 @@
 {
   "name": "@mixx/mjml-editor",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Standalone MJML email editor as a Web Component. Drop-in <mjml-editor> for any HTML, Inertia/Vue/React/Livewire host.",
   "type": "module",
   "main": "./dist/mjml-editor.umd.js",

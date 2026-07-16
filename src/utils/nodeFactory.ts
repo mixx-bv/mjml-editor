@@ -10,20 +10,23 @@ export const uid = (prefix = 'n') => `${prefix}-${Date.now().toString(36)}-${(co
  */
 export const ID_PREFIX: Record<MjmlNodeType, string> = {
   'mj-body': 'body',
+  'mj-wrapper': 'wrap',
   'mj-section': 'sec',
+  'mj-group': 'grp',
   'mj-column': 'col',
   'mj-text': 'txt',
   'mj-image': 'img',
   'mj-button': 'btn',
   'mj-divider': 'div',
   'mj-spacer': 'spc',
+  'mj-raw': 'raw',
 }
 
 // Overloads so callers get the precise node kind back and no longer need an
 // `as ContainerNode`/`as LeafNode` cast at every call site (T5).
-export function createNode(type: 'mj-body' | 'mj-section' | 'mj-column'): ContainerNode
+export function createNode(type: 'mj-body' | 'mj-wrapper' | 'mj-section' | 'mj-group' | 'mj-column'): ContainerNode
 export function createNode(
-  type: 'mj-text' | 'mj-image' | 'mj-button' | 'mj-divider' | 'mj-spacer',
+  type: 'mj-text' | 'mj-image' | 'mj-button' | 'mj-divider' | 'mj-spacer' | 'mj-raw',
 ): LeafNode
 export function createNode(type: MjmlNodeType): MjmlNode
 export function createNode(type: MjmlNodeType): MjmlNode {
@@ -33,8 +36,12 @@ export function createNode(type: MjmlNodeType): MjmlNode {
   switch (type) {
     case 'mj-body':
       return { id: uid(ID_PREFIX['mj-body']), type: 'mj-body', attrs: { 'background-color': '#f4f4f4', width: '680px' }, children: [] }
+    case 'mj-wrapper':
+      return { id: uid(ID_PREFIX['mj-wrapper']), type: 'mj-wrapper', attrs: { padding: '0' }, children: [] }
     case 'mj-section':
       return { id: uid(ID_PREFIX['mj-section']), type: 'mj-section', attrs: { 'background-color': '#ffffff', padding: '20px 0' }, children: [] }
+    case 'mj-group':
+      return { id: uid(ID_PREFIX['mj-group']), type: 'mj-group', attrs: {}, children: [] }
     case 'mj-column':
       return { id: uid(ID_PREFIX['mj-column']), type: 'mj-column', attrs: {}, children: [] }
     case 'mj-text':
@@ -47,6 +54,8 @@ export function createNode(type: MjmlNodeType): MjmlNode {
       return { id: uid(ID_PREFIX['mj-divider']), type: 'mj-divider', attrs: { 'border-width': '1px', 'border-style': 'solid', 'border-color': '#cccccc', padding: '10px 0' } }
     case 'mj-spacer':
       return { id: uid(ID_PREFIX['mj-spacer']), type: 'mj-spacer', attrs: { height: '20px' } }
+    case 'mj-raw':
+      return { id: uid(ID_PREFIX['mj-raw']), type: 'mj-raw', attrs: {}, content: '<p>Raw HTML</p>' }
   }
 }
 
@@ -57,6 +66,9 @@ export function createNode(type: MjmlNodeType): MjmlNode {
  * attrs/content are copied by value (plain strings), children recursively.
  */
 export function cloneNode(node: MjmlNode): MjmlNode {
+  if (node.type === 'passthrough') {
+    return { id: uid('raw'), type: 'passthrough', tag: node.tag, raw: node.raw }
+  }
   const id = uid(ID_PREFIX[node.type])
   if (isContainer(node)) {
     return { id, type: node.type, attrs: { ...node.attrs }, children: node.children.map(cloneNode) }
@@ -68,6 +80,23 @@ export function createInitialTree(): ContainerNode {
   const body = createNode('mj-body')
   body.children.push(createLayoutSection(1))
   return body
+}
+
+export function createWrapper(): ContainerNode {
+  const wrapper = createNode('mj-wrapper')
+  wrapper.children.push(createLayoutSection(1))
+  return wrapper
+}
+
+export function createGroup(): ContainerNode {
+  const group = createNode('mj-group')
+  for (let i = 0; i < 2; i++) {
+    const column = createNode('mj-column')
+    column.attrs = { ...column.attrs, width: '50%' }
+    column.children.push(createNode('mj-text'))
+    group.children.push(column)
+  }
+  return group
 }
 
 export function createLayoutSection(columnCount: 1 | 2 | 3): ContainerNode {

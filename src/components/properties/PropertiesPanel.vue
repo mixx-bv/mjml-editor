@@ -2,8 +2,10 @@
 import { computed } from 'vue'
 import { useEditorStore } from '../../stores/editor'
 import { useNodeActions } from '../../composables/useNodeActions'
-import { NODE_LABELS } from '../../utils/nodeLabels'
+import { nodeLabel } from '../../utils/nodeLabels'
 import BodyProps from './editors/BodyProps.vue'
+import WrapperProps from './editors/WrapperProps.vue'
+import GroupProps from './editors/GroupProps.vue'
 import ColumnProps from './editors/ColumnProps.vue'
 import SectionProps from './editors/SectionProps.vue'
 import TextProps from './editors/TextProps.vue'
@@ -11,12 +13,13 @@ import ImageProps from './editors/ImageProps.vue'
 import ButtonProps from './editors/ButtonProps.vue'
 import DividerProps from './editors/DividerProps.vue'
 import SpacerProps from './editors/SpacerProps.vue'
+import RawProps from './editors/RawProps.vue'
 import AppButton from '../app/AppButton.vue'
 
 const store = useEditorStore()
 const { canMoveUp, canMoveDown, deleteLabel, duplicate, moveUp, moveDown, remove } = useNodeActions()
 
-const typeLabel = computed(() => (store.selected ? NODE_LABELS[store.selected.type] : ''))
+const typeLabel = computed(() => (store.selected ? nodeLabel(store.selected) : ''))
 </script>
 
 <template>
@@ -36,7 +39,7 @@ const typeLabel = computed(() => (store.selected ? NODE_LABELS[store.selected.ty
             :class="{ 'is-current': node.id === store.selectedId }"
             @click="store.select(node.id)"
           >
-            {{ NODE_LABELS[node.type] || node.type }}
+            {{ nodeLabel(node) }}
           </button>
           <span v-if="i < store.ancestors.length - 1" class="props__crumb-sep">›</span>
         </template>
@@ -53,13 +56,20 @@ const typeLabel = computed(() => (store.selected ? NODE_LABELS[store.selected.ty
       </div>
 
       <BodyProps v-if="store.selected.type === 'mj-body'" />
+      <WrapperProps v-else-if="store.selected.type === 'mj-wrapper'" />
       <SectionProps v-else-if="store.selected.type === 'mj-section'" />
+      <GroupProps v-else-if="store.selected.type === 'mj-group'" />
       <ColumnProps v-else-if="store.selected.type === 'mj-column'" />
       <TextProps v-else-if="store.selected.type === 'mj-text'" />
       <ImageProps v-else-if="store.selected.type === 'mj-image'" />
       <ButtonProps v-else-if="store.selected.type === 'mj-button'" />
       <DividerProps v-else-if="store.selected.type === 'mj-divider'" />
       <SpacerProps v-else-if="store.selected.type === 'mj-spacer'" />
+      <RawProps v-else-if="store.selected.type === 'mj-raw'" />
+      <div v-else-if="store.selected.type === 'passthrough'" class="props__empty">
+        This <code>{{ store.selected.tag }}</code> element is preserved as-is and
+        isn't block-editable yet — it still renders and is saved unchanged.
+      </div>
     </template>
   </aside>
 </template>

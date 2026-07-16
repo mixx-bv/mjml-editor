@@ -29,7 +29,14 @@ export const useEditorStore = defineStore('editor', () => {
   const persisted = loadPersistedDocument()
   const tree = ref<ContainerNode>(persisted?.tree ?? createInitialTree())
   const selectedId = ref<string | null>(null)
-  const head = ref(persisted?.head ?? { title: '', preview: '' })
+  const head = ref<HeadFields>({
+    title: persisted?.head?.title ?? '',
+    preview: persisted?.head?.preview ?? '',
+    attributes: persisted?.head?.attributes ?? {},
+    attributesRaw: persisted?.head?.attributesRaw ?? '',
+    styles: persisted?.head?.styles ?? '',
+    rawExtra: persisted?.head?.rawExtra ?? '',
+  })
 
   const { snapshot, undo, redo, reset: resetHistory, canUndo, canRedo } = useHistory(tree)
 
@@ -77,6 +84,10 @@ export const useEditorStore = defineStore('editor', () => {
     head.value = {
       title: doc.head?.title ?? '',
       preview: doc.head?.preview ?? '',
+      attributes: doc.head?.attributes ?? {},
+      attributesRaw: doc.head?.attributesRaw ?? '',
+      styles: doc.head?.styles ?? '',
+      rawExtra: doc.head?.rawExtra ?? '',
     }
     selectedId.value = null
     resetHistory()
@@ -96,7 +107,7 @@ export const useEditorStore = defineStore('editor', () => {
     if (!parsed) return false
     snapshot()
     tree.value = parsed.body
-    head.value = { title: parsed.head.title, preview: parsed.head.preview }
+    head.value = parsed.head
     return true
   }
 
@@ -111,6 +122,8 @@ export const useEditorStore = defineStore('editor', () => {
   function insertNode(parentId: string, node: MjmlNode, index?: number): MjmlNode | null {
     const hit = findNode(tree.value, parentId)
     if (!hit || !isContainer(hit.node)) return null
+    // Passthrough nodes only ever come from the parser, never inserted/dragged.
+    if (node.type === 'passthrough') return null
     if (!canAcceptChild(hit.node.type, node.type)) return null
     snapshot()
     const insertAt = index ?? hit.node.children.length
@@ -164,7 +177,8 @@ export const useEditorStore = defineStore('editor', () => {
 
   function updateAttr(id: string, key: string, value: string) {
     const hit = findNode(tree.value, id)
-    if (!hit) return
+    // Passthrough nodes are opaque (raw HTML, no modelled attrs) — nothing to set.
+    if (!hit || hit.node.type === 'passthrough') return
     // Block javascript:-style link URLs at the source so every export stays
     // clean (M13). Non-URL attrs pass through untouched.
     const safe = key === 'href' ? sanitizeUrl(value) : value
@@ -173,7 +187,7 @@ export const useEditorStore = defineStore('editor', () => {
 
   function updateContent(id: string, content: string) {
     const hit = findNode(tree.value, id)
-    if (!hit || isContainer(hit.node)) return
+    if (!hit || isContainer(hit.node) || hit.node.type === 'passthrough') return
     hit.node.content = content
   }
 

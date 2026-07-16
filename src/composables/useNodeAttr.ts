@@ -11,7 +11,10 @@ import { useEditorStore } from '../stores/editor'
 export function useNodeAttr(attrKey: MaybeRefOrGetter<string>) {
   const store = useEditorStore()
   const value = computed<string>({
-    get: () => store.selected?.attrs[toValue(attrKey)] ?? '',
+    get: () => {
+      const n = store.selected
+      return (n && 'attrs' in n ? n.attrs[toValue(attrKey)] : '') ?? ''
+    },
     set: (v) => store.updateSelectedAttr(toValue(attrKey), v),
   })
   return { value, onFocus: () => store.beginEdit() }
