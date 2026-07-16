@@ -33,3 +33,23 @@ export const TEXT_WEIGHT_OPTIONS: FieldOption[] = [
   { value: '600', label: '600' },
   { value: '700', label: '700' },
 ]
+
+/**
+ * Email-safe font stacks — web-safe families that render across Outlook/Gmail/
+ * Apple Mail without an @font-face download. `value` is the full fallback stack
+ * written to the font-family attribute; `label` is the friendly name shown (and
+ * previewed in that font) in the picker.
+ */
+export const FONT_FAMILY_OPTIONS: FieldOption[] = [
+  { value: 'Arial, Helvetica, sans-serif', label: 'Arial' },
+  { value: 'Helvetica, Arial, sans-serif', label: 'Helvetica' },
+  { value: 'Verdana, Geneva, sans-serif', label: 'Verdana' },
+  { value: 'Tahoma, Geneva, sans-serif', label: 'Tahoma' },
+  { value: "'Trebuchet MS', Helvetica, sans-serif", label: 'Trebuchet MS' },
+  { value: "'Lucida Sans Unicode', 'Lucida Grande', sans-serif", label: 'Lucida Sans' },
+  { value: "Georgia, 'Times New Roman', serif", label: 'Georgia' },
+  { value: "'Times New Roman', Times, serif", label: 'Times New Roman' },
+  { value: "'Palatino Linotype', 'Book Antiqua', Palatino, serif", label: 'Palatino' },
+  { value: "Garamond, 'Times New Roman', serif", label: 'Garamond' },
+  { value: "'Courier New', Courier, monospace", label: 'Courier New' },
+]

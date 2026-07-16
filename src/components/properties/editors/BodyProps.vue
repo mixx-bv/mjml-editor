@@ -8,6 +8,5 @@ import NumberUnitField from '../fields/NumberUnitField.vue'
   <div>
     <AttrField attr-key="background-color" label="Background color" type="color" />
     <NumberUnitField attr-key="width" label="Email width" :units="['px']" />
-    <AttrField attr-key="lang" label="Language code" placeholder="en" />
   </div>
 </template>

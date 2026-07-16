@@ -27,7 +27,7 @@ export function createNode(type: MjmlNodeType): MjmlNode {
   // instead of being silenced by an `as` assertion.
   switch (type) {
     case 'mj-body':
-      return { id: uid(ID_PREFIX['mj-body']), type: 'mj-body', attrs: { 'background-color': '#f4f4f4' }, children: [] }
+      return { id: uid(ID_PREFIX['mj-body']), type: 'mj-body', attrs: { 'background-color': '#f4f4f4', width: '680px' }, children: [] }
     case 'mj-section':
       return { id: uid(ID_PREFIX['mj-section']), type: 'mj-section', attrs: { 'background-color': '#ffffff', padding: '20px 0' }, children: [] }
     case 'mj-column':

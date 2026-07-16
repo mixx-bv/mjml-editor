@@ -2,12 +2,19 @@
 import AttrField from '../fields/AttrField.vue'
 import NumberUnitField from '../fields/NumberUnitField.vue'
 import BoxField from '../fields/BoxField.vue'
-import { TEXT_ALIGN_OPTIONS, TEXT_WEIGHT_OPTIONS } from '../fieldOptions'
+import { TEXT_ALIGN_OPTIONS, TEXT_WEIGHT_OPTIONS, FONT_FAMILY_OPTIONS } from '../fieldOptions'
 
 </script>
 
 <template>
   <div>
+    <AttrField
+      attr-key="font-family"
+      label="Font family"
+      type="combobox"
+      :options="FONT_FAMILY_OPTIONS"
+      placeholder="Arial, sans-serif"
+    />
     <NumberUnitField
       attr-key="font-size"
       label="Font size"
@@ -33,6 +40,5 @@ import { TEXT_ALIGN_OPTIONS, TEXT_WEIGHT_OPTIONS } from '../fieldOptions'
       :step="0.1"
     />
     <BoxField attr-key="padding" label="Padding" />
-    <AttrField attr-key="font-family" label="Font family" placeholder="Arial, sans-serif" />
   </div>
 </template>

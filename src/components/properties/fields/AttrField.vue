@@ -2,13 +2,14 @@
 import AppField from '../../app/AppField.vue'
 import AppInput from '../../app/AppInput.vue'
 import AppSelect from '../../app/AppSelect.vue'
+import AppCombobox from '../../app/AppCombobox.vue'
 import { useNodeAttr, useNodeContent } from '../../../composables/useNodeAttr'
 
 const props = withDefaults(
   defineProps<{
     attrKey?: string
     label: string
-    type?: 'text' | 'color' | 'number' | 'url' | 'select'
+    type?: 'text' | 'color' | 'number' | 'url' | 'select' | 'combobox'
     placeholder?: string
     options?: { value: string; label: string }[]
     // 'attr' binds to node.attrs[attrKey]; 'content' binds to a leaf's text.
@@ -31,6 +32,13 @@ function onColorInput(e: Event) {
       <option value="">—</option>
       <option v-for="o in options" :key="o.value" :value="o.value">{{ o.label }}</option>
     </AppSelect>
+    <AppCombobox
+      v-else-if="type === 'combobox'"
+      v-model="value"
+      :options="options ?? []"
+      :placeholder="placeholder"
+      @focus="onFocus"
+    />
     <div v-else-if="type === 'color'" class="attr-color">
       <input type="color" :value="value || '#000000'" @input="onColorInput" @focus="onFocus" />
       <AppInput v-model="value" :placeholder="placeholder" @focus="onFocus" />

@@ -88,7 +88,11 @@ const lineCount = computed(() => sourceText.value.split('\n').length)
 .source-view {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  height: 100%;
+  // Viewport-based like the visual canvas (EditorCanvas `.canvas__frame`), so the
+  // panes fill the height even when the web-component host only sets a min-height
+  // (a percentage `height: 100%` would collapse against that non-definite height).
+  // Only the topbar sits above the source view, so no extra canvas-toolbar offset.
+  height: calc(100vh - #{$topbar-height});
   min-height: 0;
   background: $color-bg;
 }

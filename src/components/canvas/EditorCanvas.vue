@@ -19,12 +19,18 @@ const bodyWidth = computed(() => {
   return /^\d+(\.\d+)?$/.test(w) ? `${w}px` : w
 })
 
+// The email never renders wider than its body width (MJML caps mj-body), so a
+// device frame wider than the email only reveals the mj-body background as grey
+// side gutters. Cap each device at the body width: the frame always hugs the
+// email, and a device narrower than the email shows it shrunk-to-fit like a real
+// client (mobile stacks below MJML's 480px breakpoint).
 const deviceWidth = computed(() => {
+  const bodyPx = parseFloat(bodyWidth.value) || 600
   switch (ui.device) {
     case 'mobile':
-      return '375px'
+      return `${Math.min(375, bodyPx)}px`
     case 'tablet':
-      return '768px'
+      return `${Math.min(768, bodyPx)}px`
     default:
       return bodyWidth.value
   }
