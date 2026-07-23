@@ -95,3 +95,56 @@ describe('editor store — siblingInfo', () => {
     expect(store.siblingInfo(body.id)).toBeNull()
   })
 })
+
+describe('editor store — removeCardButton', () => {
+  // A card mj-text: a heading, a button that shares its cell with a paragraph, and a
+  // second button alone in its own table row.
+  const CARD =
+    '<table><tbody>' +
+    '<tr><td><div>Title</div></td></tr>' +
+    '<tr><td>' +
+    '<div><a href="{{a}}" style="display:inline-block;padding:8px;background:#000;color:#fff;">One</a></div>' +
+    '<div>Keep me</div>' +
+    '</td></tr>' +
+    '<tr><td><a href="{{b}}" style="display:inline-block;padding:8px;background:#000;color:#fff;">Two</a></td></tr>' +
+    '</tbody></table>'
+
+  function contentOf(store: ReturnType<typeof useEditorStore>): string {
+    return (findFirst(store.tree, 'mj-text') as { content?: string }).content ?? ''
+  }
+
+  it('removes only the chosen button, keeping the rest of the card 1:1', () => {
+    const store = useEditorStore()
+    const text = findFirst(store.tree, 'mj-text')!
+    store.updateContent(text.id, CARD)
+
+    expect(store.removeCardButton(text.id, 0)).toBe(true) // remove "One"
+
+    const content = contentOf(store)
+    expect(content).not.toContain('One')
+    expect(content).toContain('Two') // other button kept
+    expect(content).toContain('Keep me') // sibling text in the same cell kept
+    expect(content).toContain('Title') // heading kept
+  })
+
+  it('is a single undo step', () => {
+    const store = useEditorStore()
+    const text = findFirst(store.tree, 'mj-text')!
+    store.updateContent(text.id, CARD)
+    store.removeCardButton(text.id, 1) // remove "Two"
+
+    store.undo()
+
+    expect(contentOf(store)).toContain('Two')
+  })
+
+  it('is a no-op for an out-of-range index or a non-mj-text node', () => {
+    const store = useEditorStore()
+    const column = findFirst(store.tree, 'mj-column') as ContainerNode
+    const text = column.children[0]
+    store.updateContent(text.id, CARD)
+
+    expect(store.removeCardButton(text.id, 9)).toBe(false)
+    expect(store.removeCardButton(column.id, 0)).toBe(false) // not an mj-text
+  })
+})

@@ -67,6 +67,22 @@ describe('createShortcutHandler', () => {
     expect(column.children.find((c) => c.id === text.id)).toBeDefined()
   })
 
+  it('does NOT delete when the target is a contentEditable element from the iframe realm', () => {
+    const store = useEditorStore()
+    const text = findFirst(store.tree, 'mj-text')!
+    const column = findFirst(store.tree, 'mj-column') as ContainerNode
+    store.select(text.id)
+
+    // The handler is also bound to the preview iframe's document, so its target is
+    // an element from another realm where `instanceof HTMLElement` is false. A
+    // plain object of the same shape stands in for such a cross-realm element; the
+    // old instanceof check would wrongly delete the node mid-edit.
+    const iframeEditable = { tagName: 'DIV', isContentEditable: true } as unknown as EventTarget
+    createShortcutHandler()(key({ key: 'Backspace', target: iframeEditable }))
+
+    expect(column.children.find((c) => c.id === text.id)).toBeDefined()
+  })
+
   it('duplicates the selection on Cmd/Ctrl+D', () => {
     const store = useEditorStore()
     const text = findFirst(store.tree, 'mj-text')!

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { sanitizeInlineHtml, stripDangerousHtml, sanitizeUrl } from './sanitize'
+import { sanitizeMjTextHtml, stripDangerousHtml, sanitizeUrl } from './sanitize'
 
 // Run the compiled-email hardening the way the bridge does (parse → strip → read).
 function strip(html: string): string {
@@ -8,22 +8,26 @@ function strip(html: string): string {
   return doc.body.innerHTML
 }
 
-describe('sanitizeInlineHtml (mj-text boundary)', () => {
-  it('removes <script> while keeping allowed formatting', () => {
-    const out = sanitizeInlineHtml('<b>hi</b><script>alert(1)</script>')
+describe('sanitizeMjTextHtml (mj-text boundary)', () => {
+  it('removes <script> while keeping formatting', () => {
+    const out = sanitizeMjTextHtml('<b>hi</b><script>alert(1)</script>')
     expect(out).toContain('<b>hi</b>')
     expect(out).not.toContain('<script')
   })
 
-  it('unwraps disallowed tags and strips their event handlers', () => {
-    const out = sanitizeInlineHtml('<div onclick="bad()">keep</div>')
-    expect(out).toContain('keep')
+  it('keeps table/div/img email layout while stripping event handlers', () => {
+    const out = sanitizeMjTextHtml(
+      '<table role="presentation" style="border-collapse:collapse;"><tr><td onclick="bad()"><div style="color:#3129d6;">{{attendee.email}}</div></td></tr></table><img src="https://x.test/a.png" alt="">',
+    )
+    expect(out).toContain('<table')
+    expect(out).toContain('<img')
+    expect(out).toContain('{{attendee.email}}')
+    expect(out).toContain('style="border-collapse:collapse;"')
     expect(out).not.toContain('onclick')
-    expect(out).not.toContain('<div')
   })
 
   it('drops javascript: hrefs on links', () => {
-    const out = sanitizeInlineHtml('<a href="javascript:alert(1)">x</a>')
+    const out = sanitizeMjTextHtml('<a href="javascript:alert(1)">x</a>')
     expect(out).not.toContain('javascript:')
   })
 })

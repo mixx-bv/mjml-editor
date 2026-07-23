@@ -207,7 +207,7 @@ export const BRIDGE_SRCDOC = `<!doctype html>
     var targetId = info.id;
     if (info.id === selectedId) {
       if (info.type === 'mj-text' && !editing) {
-        enterEdit(info.el, info.id);
+        enterEdit(info.el, info.id, { x: e.clientX, y: e.clientY, target: e.target });
         return;
       }
       var parentEl = info.el.parentElement;
@@ -218,10 +218,16 @@ export const BRIDGE_SRCDOC = `<!doctype html>
     parent.postMessage({ type: 'mjed:select', id: targetId }, PARENT_ORIGIN);
   }, true);
 
-  function enterEdit(host, id) {
+  function enterEdit(host, id, at) {
     if (editing) exitEdit(true);
-    if (typeof Quill === 'undefined') return;
     var wrap = host.querySelector(':scope > div') || host;
+    // Imported templates often nest a full <table>/layout inside an mj-text block.
+    // Quill's inline model can't represent that and would flatten it on commit, so
+    // such blocks use a native contentEditable mode that edits text in place and
+    // leaves the table structure untouched (enterPlainEdit); the simpler
+    // inline-formatting blocks go through Quill.
+    if (host.querySelector('table')) return enterPlainEdit(host, wrap, id, at);
+    if (typeof Quill === 'undefined') return;
     var originalHTML = wrap.innerHTML;
     var editorDiv = document.createElement('div');
     editorDiv.innerHTML = originalHTML;
@@ -242,7 +248,7 @@ export const BRIDGE_SRCDOC = `<!doctype html>
     });
     quill.focus();
     quill.setSelection(0, quill.getLength());
-    editing = { host: host, wrap: wrap, id: id, quill: quill, originalHTML: originalHTML, range: quill.getSelection() };
+    editing = { mode: 'quill', host: host, wrap: wrap, id: id, quill: quill, originalHTML: originalHTML, range: quill.getSelection() };
     // Remember the caret so a variable picked from the parent panel (which blurs
     // this editor) still inserts at the right spot.
     quill.on('selection-change', function (range) { if (editing && range) editing.range = range; });
@@ -250,11 +256,149 @@ export const BRIDGE_SRCDOC = `<!doctype html>
     parent.postMessage({ type: 'mjed:edit-state', editing: true, id: id }, PARENT_ORIGIN);
   }
 
+  // Native contentEditable edit mode for mj-text blocks that carry a full <table>
+  // card layout. Unlike Quill it edits the existing DOM in place, so the table
+  // structure survives; commit reads wrap.innerHTML back (see exitEdit). The at
+  // param is the click position, used to drop the caret where the user clicked.
+  function enterPlainEdit(host, wrap, id, at) {
+    var editEl = pickEditable(at, wrap);
+    if (!editEl) return; // click didn't land on an editable text run — click the text
+    var originalHTML = wrap.innerHTML;
+    editEl.setAttribute('contenteditable', 'true');
+    document.body.classList.add('mjed-editing');
+    editing = { mode: 'plain', host: host, wrap: wrap, editEl: editEl, id: id, originalHTML: originalHTML, savedRange: null };
+    placeCaret(editEl, at);
+    document.addEventListener('selectionchange', onPlainSelectionChange);
+    document.addEventListener('keydown', onEditKey, true);
+    parent.postMessage({ type: 'mjed:edit-state', editing: true, id: id }, PARENT_ORIGIN);
+  }
+
+  // Native contentEditable on the whole card (root = a bare <table>), or on a table
+  // cell that wraps a block <div>, makes Chrome delete catastrophically — Backspace
+  // eats the whole block or destroys table structure, and select-all+delete no-ops.
+  // So edit only the leaf text RUN the click landed in, resolved from the actual
+  // text node at the caret point (not the click target, which is often a cell's
+  // padding). The run may never contain a table or block child. Returns null when
+  // the click didn't resolve to a safe text run (e.g. mixed text+table blocks).
+  var PLAIN_TABLE_EL = { TD: 1, TH: 1, TR: 1, TBODY: 1, THEAD: 1, TFOOT: 1, TABLE: 1, COLGROUP: 1, COL: 1 };
+  var PLAIN_BLOCK_EL = {
+    DIV: 1, P: 1, UL: 1, OL: 1, LI: 1, BLOCKQUOTE: 1, PRE: 1, SECTION: 1, ARTICLE: 1,
+    HEADER: 1, FOOTER: 1, FIGURE: 1, FIGCAPTION: 1, ADDRESS: 1, HR: 1,
+    H1: 1, H2: 1, H3: 1, H4: 1, H5: 1, H6: 1,
+    TABLE: 1, TBODY: 1, THEAD: 1, TFOOT: 1, TR: 1, TD: 1, TH: 1,
+  };
+  function plainHasBlockChild(el) {
+    for (var i = 0; i < el.children.length; i++) if (PLAIN_BLOCK_EL[el.children[i].tagName]) return true;
+    return false;
+  }
+  function pickEditable(at, wrap) {
+    var node = null;
+    if (at && document.caretRangeFromPoint) {
+      var rng = document.caretRangeFromPoint(at.x, at.y);
+      if (rng) node = rng.startContainer;
+    } else if (at && document.caretPositionFromPoint) {
+      var pos = document.caretPositionFromPoint(at.x, at.y);
+      if (pos) node = pos.offsetNode;
+    }
+    if (!node && at) node = at.target;
+    var el = (node && node.nodeType === 3) ? node.parentElement : node;
+    if (!el || el === wrap || !wrap.contains(el)) return null;
+    // Grow to the whole text run (e.g. from a <b> up to its paragraph) while staying
+    // clear of tables, table-structural elements and block children.
+    while (
+      el.parentElement && el.parentElement !== wrap &&
+      !PLAIN_TABLE_EL[el.parentElement.tagName] &&
+      !el.parentElement.querySelector('table') &&
+      !plainHasBlockChild(el.parentElement)
+    ) {
+      el = el.parentElement;
+    }
+    // The resolved element must itself be a safe leaf: a cell wrapping a block <div>
+    // or a nested table is exactly the unsafe case, so bail on it.
+    if (el.querySelector('table') || plainHasBlockChild(el)) return null;
+    return el;
+  }
+
+  // Drop the caret at the click point (caretRangeFromPoint / caretPositionFromPoint,
+  // whichever the browser exposes). The caret MUST end up inside el: if the click
+  // hit the surrounding cell's padding the point resolves outside it, and leaving
+  // the selection there would make editing keys act on the cell (corrupting the
+  // table) instead of the text run. So fall back to the end of the element.
+  function placeCaret(el, at) {
+    var range = null;
+    if (at && document.caretRangeFromPoint) {
+      range = document.caretRangeFromPoint(at.x, at.y);
+    } else if (at && document.caretPositionFromPoint) {
+      var pos = document.caretPositionFromPoint(at.x, at.y);
+      if (pos) { range = document.createRange(); range.setStart(pos.offsetNode, pos.offset); range.collapse(true); }
+    }
+    if (!range || !el.contains(range.startContainer)) {
+      range = document.createRange();
+      range.selectNodeContents(el);
+      range.collapse(false);
+    }
+    el.focus();
+    var sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+  }
+
+  // Remember the caret while plain-editing so a variable picked from the parent
+  // panel (which blurs this block) still inserts at the right spot.
+  function onPlainSelectionChange() {
+    if (!editing || editing.mode !== 'plain') return;
+    var sel = window.getSelection();
+    if (sel && sel.rangeCount) {
+      var r = sel.getRangeAt(0);
+      if (editing.wrap.contains(r.startContainer)) editing.savedRange = r.cloneRange();
+    }
+  }
+
+  // Insert a personalization token into the native contentEditable block at the
+  // saved caret; fall back to the end of the block.
+  function insertPlainToken(token) {
+    if (!editing || editing.mode !== 'plain') return;
+    var host = editing.editEl || editing.wrap;
+    var range = editing.savedRange;
+    if (!range || !host.contains(range.startContainer)) {
+      range = document.createRange();
+      range.selectNodeContents(host);
+      range.collapse(false);
+    }
+    range.deleteContents();
+    var node = document.createTextNode(token);
+    range.insertNode(node);
+    range.setStartAfter(node);
+    range.setEndAfter(node);
+    editing.savedRange = range.cloneRange();
+    var sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+  }
+
   function exitEdit(commit) {
     if (!editing) return;
     document.removeEventListener('keydown', onEditKey, true);
     var info = editing;
     editing = null;
+    if (info.mode === 'plain') {
+      document.removeEventListener('selectionchange', onPlainSelectionChange);
+      // Drop contenteditable BEFORE reading: it sits on a child of wrap, so it
+      // would otherwise serialize into the committed mj-text content.
+      if (info.editEl) info.editEl.removeAttribute('contenteditable');
+      // Native contentEditable edits the DOM in place, so read the block back
+      // directly; flatten is a no-op for the table root but normalizes any stray
+      // <p> the browser may have introduced.
+      var phtml = commit ? flattenParagraphsLocal(info.wrap.innerHTML) : '';
+      var punchanged = commit && phtml === info.originalHTML;
+      info.wrap.innerHTML = (commit && !punchanged) ? phtml : info.originalHTML;
+      document.body.classList.remove('mjed-editing');
+      parent.postMessage({ type: 'mjed:edit-state', editing: false, id: null }, PARENT_ORIGIN);
+      if (commit && !punchanged) {
+        parent.postMessage({ type: 'mjed:text-edit', id: info.id, content: phtml }, PARENT_ORIGIN);
+      }
+      return;
+    }
     var html = '';
     if (commit) {
       try {
@@ -275,6 +419,14 @@ export const BRIDGE_SRCDOC = `<!doctype html>
     if (e.key === 'Escape') {
       e.preventDefault();
       exitEdit(false);
+      return;
+    }
+    // In plain (table) edit mode insert a <br> instead of letting the browser split
+    // the current cell into new block elements, which would corrupt the table
+    // layout. execCommand is deprecated but reliably supported across our targets.
+    if (editing && editing.mode === 'plain' && e.key === 'Enter') {
+      e.preventDefault();
+      document.execCommand('insertLineBreak');
     }
   }
 
@@ -298,22 +450,35 @@ export const BRIDGE_SRCDOC = `<!doctype html>
       }
     } else if (data.type === 'mjed:insert-variable') {
       if (editing && typeof data.token === 'string') {
-        var q = editing.quill;
-        var r = (editing.range && editing.range.index != null) ? editing.range : { index: q.getLength(), length: 0 };
-        // Insert at the END of any selection (never delete) so a variable picked
-        // while text is selected — the state right after entering edit — appends
-        // instead of wiping the content.
-        var at = r.index + (r.length || 0);
-        q.insertText(at, data.token, 'user');
-        q.setSelection(at + data.token.length, 0, 'user');
-        editing.range = { index: at + data.token.length, length: 0 };
+        if (editing.mode === 'plain') {
+          insertPlainToken(data.token);
+        } else {
+          var q = editing.quill;
+          var r = (editing.range && editing.range.index != null) ? editing.range : { index: q.getLength(), length: 0 };
+          // Insert at the END of any selection (never delete) so a variable picked
+          // while text is selected — the state right after entering edit — appends
+          // instead of wiping the content.
+          var at = r.index + (r.length || 0);
+          q.insertText(at, data.token, 'user');
+          q.setSelection(at + data.token.length, 0, 'user');
+          editing.range = { index: at + data.token.length, length: 0 };
+        }
       }
     } else if (data.type === 'mjed:render') {
-      if (editing) exitEdit(false);
+      // A re-render mid-edit means the parent mutated the tree (e.g. a property
+      // field changed while the inline editor was open). Commit the pending edit
+      // (not discard) so the user's in-progress typing survives; the commit posts
+      // its own text-edit + edit-state:false, and the body innerHTML is replaced
+      // just below, so the (about-to-be-overwritten) wrap write is harmless.
+      if (editing) exitEdit(true);
       lastHover = null;
       var styleEl = document.getElementById('mjed-mjml-styles');
       if (styleEl) styleEl.textContent = data.styles || '';
       document.body.className = data.bodyClass || '';
+      // Reapply the compiled <body>'s inline style (mj-body background-color, …);
+      // cssText replaces it each render so it can't stack. The overlay's
+      // body{margin:0;cursor:default} still wins — mjml's body style sets neither.
+      document.body.style.cssText = data.bodyStyle || '';
       document.body.innerHTML = data.bodyHTML || '';
       applySelectionHighlight();
     }

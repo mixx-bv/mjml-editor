@@ -4,10 +4,15 @@ import { useNodeActions } from './useNodeActions'
 
 // A keystroke aimed at a form field or the inline rich-text editor must never
 // trigger a document action (e.g. deleting the selected block mid-typing).
+// NB: this handler is also bound to the preview iframe's document, so `el` may
+// come from that separate realm — `el instanceof HTMLElement` is FALSE there and
+// would let a Backspace in the inline editor fall through to node-delete. Duck-type
+// on the properties we actually read instead.
 function isEditableTarget(el: EventTarget | null): boolean {
-  if (!(el instanceof HTMLElement)) return false
-  const tag = el.tagName
-  return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || el.isContentEditable
+  const node = el as HTMLElement | null
+  if (!node || typeof node.tagName !== 'string') return false
+  const tag = node.tagName
+  return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || node.isContentEditable === true
 }
 
 /**

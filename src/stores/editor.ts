@@ -6,6 +6,7 @@ import { cloneNode, createInitialTree } from '../utils/nodeFactory'
 import { serializeTree } from '../utils/serialize'
 import { sanitizeUrl } from '../utils/sanitize'
 import { documentToMjmlJson, parseMjmlString } from '../utils/mjmlJson'
+import { removeCardButtonHtml } from '../utils/cardButtons'
 import { loadPersistedDocument, persistDocument } from '../utils/documentPersistence'
 import { useHistory } from '../composables/useHistory'
 
@@ -153,6 +154,20 @@ export const useEditorStore = defineStore('editor', () => {
     return copy
   }
 
+  // Remove a single button from a card-style mj-text (imported raw HTML nesting a
+  // heading, paragraphs and buttons) by its index, keeping the block whole so its
+  // exact styling stays 1:1. Returns false (a no-op) when the node isn't an mj-text
+  // or the index is out of range. Snapshots first, so a removal is one undo step.
+  function removeCardButton(id: string, index: number): boolean {
+    const hit = findNode(tree.value, id)
+    if (!hit || hit.node.type !== 'mj-text') return false
+    const next = removeCardButtonHtml(hit.node.content ?? '', index)
+    if (next == null) return false
+    snapshot()
+    hit.node.content = next
+    return true
+  }
+
   // Reorder a node among its siblings. Cross-parent moves are out of scope here;
   // an out-of-range target (already first/last) is a no-op that doesn't snapshot,
   // so undo history stays clean.
@@ -224,6 +239,7 @@ export const useEditorStore = defineStore('editor', () => {
     insertNode,
     removeNode,
     duplicateNode,
+    removeCardButton,
     moveNode,
     siblingInfo,
     updateAttr,

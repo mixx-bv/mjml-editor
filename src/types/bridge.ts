@@ -29,6 +29,6 @@ export type BridgeInbound =
 export type BridgeOutbound =
   | { type: typeof MJED.highlight; id: string | null }
   | { type: typeof MJED.dragState; dragging: boolean }
-  | { type: typeof MJED.render; styles: string; bodyHTML: string; bodyClass: string }
+  | { type: typeof MJED.render; styles: string; bodyStyle: string; bodyHTML: string; bodyClass: string }
   // Insert a personalization token at the inline editor's saved caret.
   | { type: typeof MJED.insertVariable; token: string }

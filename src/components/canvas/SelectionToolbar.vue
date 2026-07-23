@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch, onMounted, onBeforeUnmount } from 'vue'
 import { useEditorStore } from '../../stores/editor'
+import { useUiStore } from '../../stores/ui'
 import { useDnd } from '../../composables/useDnd'
 import { useNodeActions } from '../../composables/useNodeActions'
 import { markerSelector } from '../../utils/mjedMarker'
@@ -16,6 +17,7 @@ const props = defineProps<{
 }>()
 
 const store = useEditorStore()
+const ui = useUiStore()
 const { dragType } = useDnd()
 const { canMoveUp, canMoveDown, canDelete, duplicate, moveUp, moveDown, remove } = useNodeActions()
 
@@ -89,7 +91,11 @@ const style = computed(() => {
 
 <template>
   <div class="sel-overlay">
-    <div v-if="box && !dragType" class="sel-toolbar" :style="style">
+    <!-- Hidden while a block's inline text editor is open: the move/duplicate/delete
+         buttons float directly over the text being edited, and triggering them would
+         re-render the canvas and discard the in-progress edit. Mirrors the iframe's
+         own "calm the chrome while editing" suppression (bridgeSrcdoc mjed-editing). -->
+    <div v-if="box && !dragType && !ui.editingNodeId" class="sel-toolbar" :style="style">
       <button
         type="button"
         class="sel-toolbar__btn"

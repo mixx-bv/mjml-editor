@@ -1,13 +1,3 @@
-const ALLOWED_TAGS = new Set([
-  'B', 'STRONG', 'I', 'EM', 'U', 'S', 'A', 'BR', 'P',
-  'UL', 'OL', 'LI', 'SPAN',
-])
-const ALLOWED_ATTRS: Record<string, Set<string>> = {
-  A: new Set(['href', 'target', 'rel']),
-  SPAN: new Set(['style']),
-}
-const ALLOWED_STYLE_PROPS = new Set(['color', 'background-color'])
-
 const SAFE_URL_SCHEMES = new Set(['http:', 'https:', 'mailto:', 'tel:'])
 
 // Strip control chars (and spaces) so a scheme can't hide behind them, e.g.
@@ -75,77 +65,22 @@ export function stripDangerousHtml(root: ParentNode): void {
   }
 }
 
-export function sanitizeInlineHtml(html: string): string {
+/**
+ * Sanitize the inline HTML stored for an mj-text node. Shares ONE policy with the
+ * compiled-email boundary (stripDangerousHtml): a denylist that removes
+ * script-capable tags, inline event handlers and dangerous URL schemes, while
+ * KEEPING the table/div/img layout and inline styles that real email templates
+ * routinely nest inside mj-text. This deliberately replaces an earlier strict tag
+ * allowlist, which flattened those templates to plain text on import (C2). The
+ * privileged preview iframe re-runs stripDangerousHtml on the compiled output, so
+ * this boundary is defense-in-depth, not the sole XSS gate.
+ */
+export function sanitizeMjTextHtml(html: string): string {
   const tmpl = document.createElement('template')
   tmpl.innerHTML = html
-  walk(tmpl.content)
+  stripDangerousHtml(tmpl.content)
   return tmpl.innerHTML.trim()
 }
-
-function walk(root: Node) {
-  const children = Array.from(root.childNodes)
-  for (const node of children) {
-    if (node.nodeType === Node.TEXT_NODE) continue
-    if (node.nodeType !== Node.ELEMENT_NODE) {
-      node.parentNode?.removeChild(node)
-      continue
-    }
-    const el = node as Element
-    walk(el)
-
-    if (!ALLOWED_TAGS.has(el.tagName)) {
-      const parent = el.parentNode
-      if (!parent) continue
-      while (el.firstChild) parent.insertBefore(el.firstChild, el)
-      parent.removeChild(el)
-      continue
-    }
-
-    const allowed = ALLOWED_ATTRS[el.tagName] || EMPTY
-    for (const attr of Array.from(el.attributes)) {
-      if (!allowed.has(attr.name)) el.removeAttribute(attr.name)
-    }
-    if (el.tagName === 'SPAN') sanitizeStyle(el as HTMLElement)
-    if (el.tagName === 'A') sanitizeAnchor(el)
-  }
-}
-
-// Block javascript:-style hrefs and force rel=noopener on target=_blank links
-// (reverse-tabnabbing) for user-authored inline links.
-function sanitizeAnchor(el: Element) {
-  const href = el.getAttribute('href')
-  if (href !== null) {
-    const safe = sanitizeUrl(href)
-    if (safe) el.setAttribute('href', safe)
-    else el.removeAttribute('href')
-  }
-  if (el.getAttribute('target') === '_blank') {
-    const rel = new Set((el.getAttribute('rel') || '').split(/\s+/).filter(Boolean))
-    rel.add('noopener')
-    rel.add('noreferrer')
-    el.setAttribute('rel', Array.from(rel).join(' '))
-  }
-}
-
-function sanitizeStyle(el: HTMLElement) {
-  const raw = el.getAttribute('style')
-  if (!raw) return
-  const kept: string[] = []
-  for (const decl of raw.split(';')) {
-    const idx = decl.indexOf(':')
-    if (idx === -1) continue
-    const prop = decl.slice(0, idx).trim().toLowerCase()
-    const value = decl.slice(idx + 1).trim()
-    if (!prop || !value) continue
-    if (!ALLOWED_STYLE_PROPS.has(prop)) continue
-    if (/[<>"`]/.test(value)) continue
-    kept.push(`${prop}: ${value}`)
-  }
-  if (kept.length) el.setAttribute('style', kept.join('; '))
-  else el.removeAttribute('style')
-}
-
-const EMPTY: Set<string> = new Set()
 
 /**
  * Convert <p>…</p> blocks to <br>-joined inline content. Preserves <ul>/<ol>

@@ -1,6 +1,6 @@
 import { watch, type Ref } from 'vue'
 import { isContainer, type ContainerNode, type HeadFields, type MjmlNode } from '../types/mjml'
-import { sanitizeInlineHtml } from './sanitize'
+import { sanitizeMjTextHtml } from './sanitize'
 
 const STORAGE_KEY = 'mjed:document'
 const STORAGE_VERSION = 1
@@ -25,7 +25,7 @@ function sanitizeRestoredTree(node: MjmlNode): void {
   if (isContainer(node)) {
     node.children.forEach(sanitizeRestoredTree)
   } else if (node.type === 'mj-text' && typeof node.content === 'string') {
-    node.content = sanitizeInlineHtml(node.content)
+    node.content = sanitizeMjTextHtml(node.content)
   }
 }
 

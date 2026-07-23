@@ -3,7 +3,7 @@
 // it takes the list and emits the chosen token, so it stays generic and reusable
 // across property fields, the email-settings modal and the text editor. Renders
 // nothing when the host supplied no variables.
-import { ref, onMounted, onBeforeUnmount } from 'vue'
+import { ref, onMounted, onBeforeUnmount, nextTick } from 'vue'
 
 defineProps<{
   variables: { label: string; value: string }[]
@@ -13,6 +13,20 @@ const emit = defineEmits<{ insert: [token: string] }>()
 
 const open = ref(false)
 const root = ref<HTMLElement | null>(null)
+const btn = ref<HTMLElement | null>(null)
+const list = ref<HTMLElement | null>(null)
+// The dropdown is teleported to <body> so an ancestor with `overflow:auto` (the
+// properties panel) can't clip it; these are its fixed viewport coords, kept
+// right-aligned to the button and recomputed each time it opens.
+const pos = ref({ top: 0, right: 0 })
+
+async function toggle() {
+  open.value = !open.value
+  if (!open.value) return
+  await nextTick()
+  const r = btn.value?.getBoundingClientRect()
+  if (r) pos.value = { top: r.bottom + 4, right: Math.max(8, window.innerWidth - r.right) }
+}
 
 function pick(token: string) {
   emit('insert', token)
@@ -20,7 +34,10 @@ function pick(token: string) {
 }
 
 function onDocClick(e: MouseEvent) {
-  if (open.value && root.value && !root.value.contains(e.target as Node)) open.value = false
+  const t = e.target as Node
+  if (open.value && root.value && !root.value.contains(t) && !list.value?.contains(t)) {
+    open.value = false
+  }
 }
 
 onMounted(() => document.addEventListener('click', onDocClick))
@@ -30,22 +47,30 @@ onBeforeUnmount(() => document.removeEventListener('click', onDocClick))
 <template>
   <div v-if="variables.length" ref="root" class="var-menu">
     <button
+      ref="btn"
       type="button"
       class="var-menu__btn"
       title="Insert variable"
       aria-label="Insert variable"
-      @click.stop="open = !open"
+      @click.stop="toggle"
     >
       {&nbsp;}
     </button>
-    <ul v-if="open" class="var-menu__list">
-      <li v-for="v in variables" :key="v.value">
-        <button type="button" class="var-menu__item" @click="pick(v.value)">
-          <span class="var-menu__label">{{ v.label }}</span>
-          <code class="var-menu__token">{{ v.value }}</code>
-        </button>
-      </li>
-    </ul>
+    <Teleport to="body">
+      <ul
+        v-if="open"
+        ref="list"
+        class="var-menu__list"
+        :style="{ top: pos.top + 'px', right: pos.right + 'px' }"
+      >
+        <li v-for="v in variables" :key="v.value">
+          <button type="button" class="var-menu__item" @click="pick(v.value)">
+            <span class="var-menu__label">{{ v.label }}</span>
+            <code class="var-menu__token">{{ v.value }}</code>
+          </button>
+        </li>
+      </ul>
+    </Teleport>
   </div>
 </template>
 
@@ -77,10 +102,8 @@ onBeforeUnmount(() => document.removeEventListener('click', onDocClick))
   }
 
   &__list {
-    position: absolute;
-    right: 0;
-    top: calc(100% + 4px);
-    z-index: 30;
+    position: fixed;
+    z-index: 1100;
     margin: 0;
     padding: 4px;
     list-style: none;

@@ -1,7 +1,7 @@
 import type { ContainerNode, HeadFields, MjmlNode, MjmlNodeType, PassthroughNode } from '../types/mjml'
 import { CONTAINER_TYPES, isContainer, nonEmptyAttrs, VALID_PARENT } from '../types/mjml'
 import { ID_PREFIX, uid } from './nodeFactory'
-import { sanitizeInlineHtml } from './sanitize'
+import { sanitizeMjTextHtml } from './sanitize'
 import { parseEditorClass } from './mjedMarker'
 
 /**
@@ -133,7 +133,7 @@ export function parseMjmlString(mjml: string): ParsedMjmlDocument | null {
 // mj-text content is inline HTML and must be sanitized at the boundary (C2);
 // other leaves carry plain text that is escaped at serialize time.
 function leafContent(type: MjmlNodeType, raw: string): string {
-  return type === 'mj-text' ? sanitizeInlineHtml(raw) : raw
+  return type === 'mj-text' ? sanitizeMjTextHtml(raw) : raw
 }
 
 function passthroughFrom(el: Element): PassthroughNode {

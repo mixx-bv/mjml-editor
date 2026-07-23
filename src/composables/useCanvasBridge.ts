@@ -1,6 +1,6 @@
 import { onMounted, onBeforeUnmount, ref, watch, type Ref } from 'vue'
 import { editorClass } from '../utils/mjedMarker'
-import { sanitizeInlineHtml, flattenParagraphs, stripDangerousHtml } from '../utils/sanitize'
+import { sanitizeMjTextHtml, flattenParagraphs, stripDangerousHtml } from '../utils/sanitize'
 import { MJED, type BridgeInbound, type BridgeOutbound } from '../types/bridge'
 import { useUiStore } from '../stores/ui'
 import type { useEditorStore } from '../stores/editor'
@@ -26,17 +26,22 @@ export function useCanvasBridge(
   const iframeReady = ref(false)
   const ui = useUiStore()
 
-  function extractRender(html: string): { styles: string; bodyHTML: string; bodyClass: string } {
+  function extractRender(html: string): { styles: string; bodyStyle: string; bodyHTML: string; bodyClass: string } {
     const parser = new DOMParser()
     const doc = parser.parseFromString(html, 'text/html')
     const styleNodes = Array.from(doc.head.querySelectorAll('style'))
     const styles = styleNodes.map((s) => s.textContent || '').join('\n')
     const bodyClassBase = doc.body.className || ''
     const bodyClass = `${bodyClassBase} ${editorClass(store.tree.id, 'mj-body')}`.trim()
+    // mjml puts `mj-body background-color` (and word-spacing) on the compiled
+    // <body>'s inline style, not in a <style> rule — carry it across too so the
+    // canvas shows the email background, matching the full-document source preview
+    // instead of falling back to the iframe's white default.
+    const bodyStyle = doc.body.getAttribute('style') || ''
     // bodyHTML is assigned via innerHTML in an allow-same-origin iframe, so strip
     // script-capable markup before it can run in the host origin (C2).
     stripDangerousHtml(doc.body)
-    return { styles, bodyHTML: doc.body.innerHTML, bodyClass }
+    return { styles, bodyStyle, bodyHTML: doc.body.innerHTML, bodyClass }
   }
 
   function postToIframe(msg: BridgeOutbound) {
@@ -61,7 +66,7 @@ export function useCanvasBridge(
       store.select(data.id)
     } else if (data.type === MJED.textEdit) {
       store.beginEdit()
-      store.updateContent(data.id, sanitizeInlineHtml(flattenParagraphs(data.content)))
+      store.updateContent(data.id, sanitizeMjTextHtml(flattenParagraphs(data.content)))
     } else if (data.type === MJED.editState) {
       ui.setEditingNode(data.editing ? data.id : null)
     }
